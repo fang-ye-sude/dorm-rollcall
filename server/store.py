@@ -81,6 +81,20 @@ def init(data_dir):
 
     CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT);
 
+    CREATE TABLE IF NOT EXISTS device_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts REAL NOT NULL,            -- 服务端接收时间
+        device TEXT,                 -- 设备/层标识
+        version TEXT,                -- 客户端版本
+        level TEXT,                  -- info/warn/error/crash
+        tag TEXT,
+        msg TEXT,
+        extra TEXT,
+        ip TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_devlogs_ts ON device_logs(ts);
+    CREATE INDEX IF NOT EXISTS idx_devlogs_device ON device_logs(device, ts);
+
     CREATE TABLE IF NOT EXISTS events (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         ts REAL NOT NULL,
@@ -255,6 +269,43 @@ def kv_get(k, default=None):
 
 def kv_set(k, v):
     _exec("INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", (k, str(v)))
+
+
+def add_device_logs(device, version, entries, ip=""):
+    """批量写入设备日志；entries = [{t,level,tag,msg,extra}]，返回写入条数。"""
+    rows = []
+    now = time.time()
+    for e in entries or []:
+        if not isinstance(e, dict):
+            continue
+        rows.append((float(e.get("t") or now), str(device or "")[:64], str(version or "")[:24],
+                     str(e.get("level") or "info")[:12], str(e.get("tag") or "")[:48],
+                     str(e.get("msg") or "")[:1000],
+                     (json.dumps(e.get("extra"), ensure_ascii=False)[:2000] if e.get("extra") else None),
+                     str(ip or "")[:48]))
+    if not rows:
+        return 0
+    with _lock:
+        conn().executemany("INSERT INTO device_logs(ts,device,version,level,tag,msg,extra,ip)"
+                           " VALUES(?,?,?,?,?,?,?,?)", rows)
+        conn().commit()
+    return len(rows)
+
+
+def list_device_logs(limit=200, device=None, level=None, offset=0):
+    q = "SELECT id,ts,device,version,level,tag,msg,extra FROM device_logs"
+    where, args = [], []
+    if device:
+        where.append("device LIKE ?"); args.append("%" + device + "%")
+    if level:
+        where.append("level = ?"); args.append(level)
+    if where:
+        q += " WHERE " + " AND ".join(where)
+    q += " ORDER BY id DESC LIMIT ? OFFSET ?"
+    args += [int(limit), int(offset)]
+    with _lock:
+        rows = conn().execute(q, args).fetchall()
+    return [dict(r) for r in rows]
 
 
 def log_event(level, msg):

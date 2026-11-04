@@ -294,6 +294,8 @@ Q_OF = {9: "DS", 10: "DB", 11: "XS", 12: "XB"}
 WEEKDAY_CN = "一二三四五六日"
 LOCK = threading.RLock()      # 保护写文件（config.json / pending/<date>.json 的读-改-写）
 FILL_LOCK = threading.Lock()  # /write-now 单飞，避免连点重复写表
+_LOG_RL = {}                  # 设备日志上报限流：key -> [时间戳]
+_LOG_RL_LOCK = threading.Lock()
 MAX_BODY = 500_000
 
 # ---------------- 客户端 OTA ----------------
@@ -1296,6 +1298,34 @@ class H(BaseHTTPRequestHandler):
                 logline(f"fill-now 失败 {p}: {e}")
                 return self._send(500, {"ok": False, "error": "process failed"})
             return self._send(200, {"ok": True})
+        if u.path in ("/api/log", "/api/logs"):        # 设备日志上报
+            tok_ok = self._token_ok(q, payload) or (bool(ADMIN) and q.get("admin", [""])[0] == ADMIN)
+            if not tok_ok:
+                return self._send(401, {"ok": False, "error": "auth"})
+            dev = str(payload.get("device") or q.get("device", [""])[0])[:64]
+            ver = str(payload.get("version") or "")[:24]
+            entries = payload.get("entries") or []
+            if not isinstance(entries, list):
+                return self._send(400, {"ok": False, "error": "entries"})
+            if len(entries) > 200:                     # 单次上限，防灌库
+                entries = entries[:200]
+            # 简易限流：同一设备/IP 每分钟最多 30 次上报
+            ip = (self.headers.get("X-Real-IP") or self.client_address[0] or "")[:48]
+            key = dev or ip
+            now = time.time()
+            with _LOG_RL_LOCK:
+                hist = _LOG_RL.get(key, [])
+                hist = [t for t in hist if now - t < 60]
+                if len(hist) >= 30:
+                    return self._send(429, {"ok": False, "error": "too many"})
+                hist.append(now)
+                _LOG_RL[key] = hist
+            try:
+                n = STORE.add_device_logs(dev or ip, ver, entries, ip)
+            except Exception as e:
+                logline("设备日志入库失败：%r" % (e,))
+                return self._send(500, {"ok": False, "error": "store"})
+            return self._send(200, {"ok": True, "n": n})
         if u.path == "/api/ack":   # 兜底任务写成功后销账：把 pending 挪 logs/done
             date = str(payload.get("date") or payload.get("file") or q.get("date", [""])[0])
             if not re.fullmatch(r"\d{4}-\d{2}-\d{2}(-[ABab]\d)?", date):   # 计划文件名，防 ../ 穿越
@@ -1570,6 +1600,18 @@ class H(BaseHTTPRequestHandler):
             c = cfg()
             return self._send(200, {"ok": True, "items": list(reversed(out)), "cfg": c,
                                     "log": self._tail(os.path.join(DATA, "logs", "fill.log"))})
+        if u.path == "/api/logs":       # 设备日志查询（管理员）
+            _h = self.headers.get("Authorization", "").replace("Bearer ", "").strip()
+            if not ADMIN or (q.get("admin", [""])[0] != ADMIN and _h != ADMIN):
+                return self._send(401, {"ok": False, "error": "admin"})
+            try:
+                limit = max(1, min(500, int(q.get("limit", ["200"])[0] or 200)))
+            except Exception:
+                limit = 200
+            items = STORE.list_device_logs(limit=limit,
+                                           device=(q.get("device", [""])[0] or None),
+                                           level=(q.get("level", [""])[0] or None))
+            return self._send(200, {"ok": True, "items": items})
         if u.path == "/api/pending":   # 待填信箱（兜底任务/管理台读，token 或 admin 均可）
             if not self._auth(q) and (not ADMIN or q.get("admin", [""])[0] != ADMIN):
                 return self._send(401, {"ok": False, "error": "auth"})

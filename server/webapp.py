@@ -20,6 +20,34 @@ JOB = {"running": False, "log": [], "title": ""}
 LOCK = threading.Lock()
 
 
+
+LOGS_PAGE = """<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>设备日志 · 宿舍点名</title>
+<style>
+body{margin:0;background:#f5f7fa;color:#16202b;font:14px/1.6 -apple-system,"PingFang SC",sans-serif}
+header{display:flex;gap:12px;align-items:center;padding:14px 18px;background:#fff;border-bottom:1px solid #e3e8ef}
+h1{font-size:17px;margin:0} a{color:#1d4e89;text-decoration:none}
+form{margin-left:auto;display:flex;gap:6px} input,select,button{padding:5px 8px;border:1px solid #cfd8e3;border-radius:6px;font:inherit;background:#fff}
+table{width:100%%;border-collapse:collapse;background:#fff} th,td{padding:7px 10px;border-bottom:1px solid #eef2f7;vertical-align:top;text-align:left}
+th{background:#f8fafc;font-weight:600;position:sticky;top:0} td.ts{white-space:nowrap;color:#64748b}
+td.msg{white-space:pre-wrap;word-break:break-all;max-width:640px} .empty{text-align:center;color:#94a3b8;padding:40px}
+.bar{padding:8px 18px;color:#64748b;font-size:12px}
+</style></head><body>
+<header><h1>设备日志</h1><a href="/">← 回控制台</a>
+<form method="get"><input name="device" placeholder="设备/层" value="%s">
+<select name="level"><option value="">全部级别</option>
+<option value="crash">crash</option><option value="error">error</option><option value="warn">warn</option><option value="info">info</option></select>
+<button>筛选</button></form></header>
+<div class="bar">最近 %d 条 · 每 30 秒自动刷新</div>
+<table><thead><tr><th>时间</th><th>设备</th><th>版本</th><th>级别</th><th>标签</th><th>内容</th></tr></thead>
+<tbody>%s</tbody></table>
+<script>
+const lv=new URLSearchParams(location.search).get('level')||'';
+document.querySelector('select[name=level]').value=lv;
+setTimeout(()=>location.reload(),30000);
+</script></body></html>"""
+
 def creds():
     try:
         u, p = open(AUTH, encoding="utf-8").read().strip().split(":", 1)
@@ -381,6 +409,39 @@ class H(BaseHTTPRequestHandler):
             return self._send(302, "", "text/plain; charset=utf-8", {"Location": "/"})
         if u.path == "/":
             return self._send(200, PAGE, "text/html; charset=utf-8")
+        if u.path == "/logs":
+            try:
+                import store as STORE
+                dev = (q.get("device", [""])[0] or "").strip()
+                lvl = (q.get("level", [""])[0] or "").strip()
+                items = STORE.list_device_logs(limit=300, device=dev or None, level=lvl or None)
+            except Exception as e:
+                items, dev, lvl = [], "", ""
+                LOG("设备日志读取失败：%r" % (e,))
+            def esc(x):
+                return (str(x or "").replace("&", "&amp;").replace("<", "&lt;")
+                        .replace(">", "&gt;").replace('"', "&quot;"))
+            rows = []
+            for it in items:
+                import datetime as _dt
+                ts = _dt.datetime.fromtimestamp(it["ts"]).strftime("%m-%d %H:%M:%S")
+                col = {"crash": "#c0392b", "error": "#d35400", "warn": "#b7950b"}.get(it["level"], "#2c3e50")
+                rows.append("<tr><td class=ts>%s</td><td>%s</td><td>%s</td><td style=\"color:%s;font-weight:600\">%s</td>"
+                            "<td>%s</td><td class=msg>%s</td></tr>" % (
+                                ts, esc(it["device"]), esc(it["version"]), col, esc(it["level"]),
+                                esc(it["tag"]), esc(it["msg"])))
+            html = LOGS_PAGE % (esc(dev), len(items),
+                                "".join(rows) or "<tr><td colspan=6 class=empty>暂无日志</td></tr>")
+            return self._send(200, html, "text/html; charset=utf-8")
+        if u.path == "/api/logs":
+            try:
+                import store as STORE
+                return self._send(200, {"ok": True, "items": STORE.list_device_logs(
+                    limit=max(1, min(500, int((q.get("limit", ["200"])[0] or 200)))),
+                    device=(q.get("device", [""])[0] or None),
+                    level=(q.get("level", [""])[0] or None))})
+            except Exception as e:
+                return self._send(500, {"ok": False, "err": str(e)[:120]})
         if u.path == "/api/status":
             return self._send(200, {"nodes": current_nodes(),
                                     "job": {"running": JOB["running"], "title": JOB["title"],
@@ -717,7 +778,7 @@ details.plist summary{cursor:pointer;color:var(--sub);font-size:12px}
   .librow .tm{flex:1 1 100%}
 }
 </style></head><body><div class="wrap">
-<h1>宿舍点名控制台</h1>
+<h1>宿舍点名控制台</h1><a href="/logs" style="margin-left:12px;font-size:13px;color:#1d4e89">设备日志 →</a>
 <div class="sub">B 座一层 · 请假表 / 周末未返校统计 / 宿舍点体温 —— 发布、填表、表指向、定时任务，皆在此处</div>
 
 <div class="card" style="margin-bottom:16px">
@@ -1166,7 +1227,7 @@ async function refreshOverview(){
       btns.push(`<button class="ghost sm" onclick="doFill(0,true)">试运行</button>`);
       btns.push(`<button class="sm" onclick="doFill(0,false)">写入三表并销账</button>`);
     }else if(!mk){
-      btns.push(`<span class="mini">等学生211在 iPad 上传点名件</span>`);
+      btns.push(`<span class="mini">等方晔在 iPad 上传点名件</span>`);
     }else if(!filled){
       btns.push(`<span class="mini">今日件已上传但未写表，可到下方计划卡手动填</span>`);
     }
