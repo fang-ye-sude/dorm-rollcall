@@ -16,7 +16,8 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 WHITE_SUFFIX = ("example.com", "github.com", "githubusercontent.com", "gradle.org",
                 "maven.org", "apple.com", "apache.org", "w3.org", "android.com",
                 "java.io", "java.net", "javax.net", "android.net", "json.org",
-                "kotlinlang.org", "jetbrains.com", "dingtalk.com", "bars.top")
+                "kotlinlang.org", "jetbrains.com", "dingtalk.com", "bars.top",
+                "gitee.com", "gitcode.com", "atomgit.com", "coding.net")
 SELF = "tools/audit_desensitize.py"
 RULES = {
     "公网IP": r"\b(?!10\.|127\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|203\.0\.113\.)"
