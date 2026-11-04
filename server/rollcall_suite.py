@@ -551,6 +551,8 @@ def resolve(name):
     return None
 
 def iter_records():
+    """[LEGACY] 文件时代的记录遍历，仅服务 /list /get /index /fill-now 等老接口；
+    新逻辑一律走 STORE（SQLite）。别在新代码里用它。"""
     out = []
     for sub in (ROLL, MARKED):
         d = os.path.join(DATA, sub)
@@ -859,24 +861,6 @@ def weekend_rows(mk, sc=None):
     stus.sort(key=lambda s: (classes.index(s["cls"]), s["_ord"]))
     return [[full(s["cls"]), s["name"], "病假" if s["q"].endswith("B") else "走读"] for s in stus]
 
-def purge_same_date(new_path, newdate, newmk=None):
-    newmk = newmk or {}
-    """同日期旧 marked → .trash（一日内多次改标记，表只认最新，库也不堆陈件）"""
-    trash = os.path.join(DATA, ".trash")
-    os.makedirs(trash, exist_ok=True)
-    for rel, ab in iter_records():
-        if rel.startswith(MARKED + "/") and ab != new_path:
-            try:
-                d0 = read_json(ab)
-                if mark_date(d0) == newdate and \
-                   d0.get("building", "B") == newmk.get("building", "B") and \
-                   str(d0.get("floor", 1)) == str(newmk.get("floor", 1)):
-                    dst = os.path.join(trash, time.strftime("%Y%m%d%H%M%S") + "-" + os.path.basename(ab))
-                    os.replace(ab, dst)
-                    logline(f"旧同日期件隐藏 {rel}")
-            except Exception:
-                pass
-
 def plan_dir():
     d = os.path.join(DATA, "pending"); os.makedirs(d, exist_ok=True); return d
 
@@ -926,15 +910,6 @@ def process_marked(path):
             "（待 AI 任务取件填写）")
 
 
-def _bg_process(path):
-    """上传后的后台处理：任何异常只记日志，不让线程静默炸掉计划"""
-    try:
-        process_marked(path)
-    except Exception as e:
-        logline(f"标记件处理失败 {path}: {e}")
-
-
-# ---------------- HTTP ----------------
 def _eq(a, b):
     try:
         return hmac.compare_digest(str(a), str(b))

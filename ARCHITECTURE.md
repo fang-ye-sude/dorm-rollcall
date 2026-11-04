@@ -153,6 +153,14 @@ marked/<时间戳>.json.gz   →  生成 pending/<日期>-<层>.json（计划）
 
 发版脚本：仓库根 `publish-ota.sh`（读版本号 → 构建 → 上传 → 重写清单）。
 
+## 9.1 表格 CLI 适配层（`server/sheet_cli.py`）
+
+所有表格读写都走这一层，不再到处 `subprocess` + 字符串匹配：
+
+- 统一超时（默认 90s）、重试 3 次、失败抛 `SheetError`；
+- 返回统一 dict（`success` / `cells` / `data`）；
+- `RC_DWS_MODE=mock` 时离线桩：写会记住值、读会回放，能完整验证「写 → 回读校验」链路。
+
 ## 10. 已知边界
 
 - 表格 CLI（`dws`）是外部依赖，本仓库不含；接入自己的表格服务时替换 `pipeline_ops.dws()` 即可；

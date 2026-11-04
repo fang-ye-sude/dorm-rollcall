@@ -40,6 +40,10 @@ ZHANG_DAD_CORP = os.environ.get("RC_DINGTALK_CORP") or _dt.get("corp_id", "")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")))
 import table_layout as TL
+try:
+    import sheet_cli as SHEET
+except Exception:
+    SHEET = None
 HEADS = TL.HEADS
 OFFS = TL.OFFS
 
@@ -72,23 +76,13 @@ def _parse(out):
 
 
 def dws(*args, check=True, tries=3):
-    last = ""
-    for attempt in range(1, tries + 1):
-        r = subprocess.run([DWS] + [str(a) for a in args] + ["--format", "json"],
-                           capture_output=True, text=True, timeout=180)
-        out = (r.stdout or "") + (r.stderr or "")
-        last = out
-        d = _parse(r.stdout or "")
-        ok = '"success": true' in out or (isinstance(d, dict) and (d.get("success") or d.get("ok")))
-        if ok:
-            return d
-        if attempt < tries:
-            time.sleep(0.6 * attempt)        # 轻量退避：网络抖动/限流多半一次就好
-            continue
-        break
-    if check:
-        raise RuntimeError("dws %s → %s" % (" ".join(str(a) for a in args[:6]), last[:220]))
-    return {}
+    """统一走 sheet_cli：超时/重试/结构化错误都在那一层；失败抛 RuntimeError。"""
+    if SHEET is None:
+        raise RuntimeError("sheet_cli 未就绪")
+    try:
+        return SHEET.sheet(*args, check=check, tries=tries)
+    except SHEET.SheetError as e:
+        raise RuntimeError(str(e))
 
 
 def revoke(node):
@@ -356,7 +350,9 @@ def cmd_fill(sweep=False, dry=False, targets=("main", "weekend", "temp")):
             if "main" in targets:
                 if not node or str(node).startswith("PLACEHOLDER"):
                     raise RuntimeError("在线表 node 未配置")
-                selfcheck(plan, node)
+                if not (SHEET is not None and getattr(SHEET, "MOCK", False)) \
+                        and os.environ.get("RC_SKIP_SELFCHECK") != "1":
+                    selfcheck(plan, node)      # mock/离线时跳过结构自检（没有真实表头）
                 fill_main(plan, node, dry)
                 done.append("主表")
             if plan.get("weekend") and "weekend" in targets:
@@ -364,7 +360,7 @@ def cmd_fill(sweep=False, dry=False, targets=("main", "weekend", "temp")):
                     raise RuntimeError("weekend_node 未配置")
                 fill_weekend(plan, wnode, dry)
                 done.append("周末表")
-            if "temp" in targets:
+            if "temp" in targets and os.environ.get("RC_SKIP_TEMP") != "1":
                 fill_temp(plan, dry)
                 done.append("体温表")
             if not dry and "main" in targets:

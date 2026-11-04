@@ -51,8 +51,8 @@ server/            服务端（零第三方依赖，http.server + json）
   webapp.py           独立网页面板（可选）
   suite_web/          管理台前端（原生 JS，无框架）
   ops/                名册导入与看门脚本
-android/           Android 客户端（Gradle + Material 3）
-android-lite/      Android 极简客户端（自定义 aapt2 构建，36 KB）
+android/           Android 客户端（Gradle + Material 3，唯一在维护的客户端）
+archive/           归档：android-lite（36KB 精简版）、server-legacy（早期入口）
 ios/               iOS 客户端（SwiftUI + XcodeGen）
 docs/              需求、流程、原理、接口、运维、踩坑、红蓝对抗记录
 examples/          示例名册与账号（虚构数据）
@@ -114,6 +114,14 @@ python3 server/rollcall_suite.py             # 监听 :8100
 - [DEPLOY.md](DEPLOY.md) —— 服务端 / iOS / Android 部署与签名
 - [SECURITY.md](SECURITY.md) —— 脱敏范围与安全边界
 - [docs/](docs/) —— 需求、流程、接口、运维、踩坑、红蓝对抗测试
+
+## 本地测试（不出网）
+
+表格写入依赖外部 CLI；开发时设 `RC_DWS_MODE=mock` 即可离线跑通整条流水线（含回读校验）：
+
+```bash
+RC_DWS_MODE=mock RC_SKIP_TEMP=1 python3 server/pipeline_ops.py fill
+```
 
 ## 许可
 
