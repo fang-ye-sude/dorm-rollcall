@@ -17,7 +17,16 @@ import os
 import subprocess
 import time
 
-DEFAULT_BIN = os.environ.get("RC_DWS", "/srv/dormroll/bin/dws")
+def _bin():
+    """CLI 位置：环境变量优先，其次常见路径（部署各不相同）。"""
+    cands = [os.environ.get("RC_DWS"), "/usr/local/bin/dws",
+             "/srv/dormroll/bin/dws", "/srv/dormroll/bin/dws", "dws"]
+    for c in cands:
+        if not c:
+            continue
+        if c == "dws" or os.path.exists(c):
+            return c
+    return "dws"
 MOCK = os.environ.get("RC_DWS_MODE", "").strip().lower() in ("mock", "dry", "test")
 
 
@@ -98,12 +107,12 @@ def sheet(*args, check=True, tries=3, timeout=90):
     last = ""
     for attempt in range(1, max(1, tries) + 1):
         try:
-            r = subprocess.run([DEFAULT_BIN] + args + ["--format", "json"],
+            r = subprocess.run([_bin()] + args + ["--format", "json"],
                                capture_output=True, text=True, timeout=timeout)
         except subprocess.TimeoutExpired:
             last = "timeout>%ss" % timeout
         except FileNotFoundError:
-            last = "CLI 不存在：%s" % DEFAULT_BIN
+            last = "CLI 不存在：%s" % _bin()
             break
         else:
             out = (r.stdout or "") + ("\n" + r.stderr if r.stderr else "")
@@ -131,4 +140,4 @@ def sheet(*args, check=True, tries=3, timeout=90):
 
 
 def available():
-    return MOCK or os.path.exists(DEFAULT_BIN)
+    return MOCK or bool(_bin())
