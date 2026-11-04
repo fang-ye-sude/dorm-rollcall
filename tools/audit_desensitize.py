@@ -71,7 +71,7 @@ def main():
         if line.startswith("+++ b/"):
             cur = line[6:].strip()
             continue
-        if line.startswith(("+++", "---", "@@", "diff ")):
+        if line.startswith(("+++", "---", "@@", "diff ", "commit ", "index ")):
             continue
         if cur == SELF:
             continue
