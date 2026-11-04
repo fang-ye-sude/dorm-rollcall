@@ -41,6 +41,17 @@ def save(data):
     with open(FILE, "w", encoding="utf-8") as fh:
         json.dump(data, fh, ensure_ascii=False, indent=1)
     os.chmod(FILE, 0o600)
+    # 同时写进 SQLite（服务端以库为准；写失败也不影响文件形态）
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        import store as STORE
+        STORE.init(DATA)
+        for a in data.get("accounts", []):
+            sc = a.get("scope") or {}
+            STORE.put_account(a.get("id"), a.get("label"), a.get("salt"), a.get("pass"),
+                              sc.get("building", "B"), sc.get("floor", 1), a.get("enabled", True))
+    except Exception as e:
+        print("（写入 SQLite 失败，仅文件生效：%s）" % e)
 
 
 def add(data, aid, pw, building, floor, label=None):

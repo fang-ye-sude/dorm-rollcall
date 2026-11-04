@@ -32,6 +32,14 @@ export RC_DWS=/usr/local/bin/dws   # 换成你的表格 CLI
 python3 server/rollcall_suite.py   # 默认 :8100
 ```
 
+记录默认落在 `data/rollcall.db`（SQLite，自动创建；老的文件记录首次启动会自动迁进去）。
+
+对接钉钉/企业微信这类平台时，把群会话 ID、应用密钥等放进 `data/state/dingtalk.json`（权限 600），不要写进代码：
+
+```json
+{"group_cid": "...", "app_key": "...", "uid": "...", "corp_id": "..."}
+```
+
 systemd：
 
 ```ini

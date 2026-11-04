@@ -11,17 +11,25 @@
 登录：`POST /auth/login {id, password}` → `access_token`（HMAC 签名，默认 12 小时）。
 令牌校验失败 → 401，客户端自动回选层页。
 
-## 2. 数据目录
+## 2. 存储：SQLite（记录）+ 文件（名册/日志）
 
-```
-data/
-├─ roster_b1f.json … roster_A5f.json   # 七层名册（房号 → 8 个床位）
-├─ marked/                             # 客户端上传的原始标记件（json.gz）
-├─ roll/                               # 回执件
-├─ pending/                            # 待填计划（一层一件）
-├─ logs/                               # fill.log / done / superseded / roster_watch.log
-└─ state/                              # accounts.json / roster_rules.json / roster_sources.json
-```
+**记录类数据走数据库** `data/rollcall.db`（WAL 模式，标准库 `sqlite3`，零外部依赖）：
+
+| 表 | 一行是什么 | 关键字段 |
+| --- | --- | --- |
+| `uploads` | 一次客户端上传 | `ts, date, building, floor, kind, n, ref, payload, gz, sha256` |
+| `plans` | 一层一天的待填计划 | `date, building, floor, payload, status(pending/done)`，唯一键 `(date,building,floor)` |
+| `accounts` | 一个层账号 | `id, label, salt, pass, building, floor, enabled` |
+| `kv` | 配置/标记 | `k, v` |
+| `events` | 操作日志 | `ts, level, msg` |
+
+- 上传不再「一条一个 json.gz 文件」：原始 JSON 与 gzip 副本都存库，`/raw/db/<id>` 直接下载；
+- 计划不再「一层一个 pending 文件」：`upsert` 到 `plans`，重复上传自动覆盖，`ack` 置 `done`；
+- 删除是一条 `DELETE`，然后按同一天/层最新的一条上传重算计划（或删除计划）；
+- 首次启动会把老的 `data/marked`、`data/roll`、`data/pending`、`accounts.json` 自动迁移进库，迁移标记写 `kv`，可重复执行。
+
+文件只保留：名册 `roster_*.json`（派生物）、`logs/`（文本日志）、`state/`（配置）。
+
 
 名册结构：
 

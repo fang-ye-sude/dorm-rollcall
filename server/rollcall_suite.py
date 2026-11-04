@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""rollcall_suite — B座点名·填表 一体机（跑在 应用容器 app-container，:8100）
+"""rollcall_suite — B座点名·填表 一体机（跑在 应用容器 pve-rollcall，:8100）
 
 职责（全部本地计算，零 AI）：
   接收 iPad 上传（回执/标记件，gzip 落盘、分类 roll/ marked/）
@@ -17,6 +17,8 @@
 """
 import json, os, re, sys, gzip, time, hmac, hashlib, base64, datetime, subprocess, tempfile, threading, urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+import store as STORE
 from urllib.parse import urlparse, parse_qs
 
 DATA = os.environ.get("RC_DATA", "/srv/dormroll/data")
@@ -29,6 +31,7 @@ CLIENT_WEB = os.environ.get("RC_CLIENT_WEB", "/srv/dormroll/app/web")   # iPad �
 APP_DIR = os.path.dirname(CLIENT_WEB)          # /srv/dormroll/app
 RC_ROOT = os.path.dirname(APP_DIR)             # /srv/dormroll
 ACCOUNTS_FILE = os.path.join(DATA, "state", "accounts.json")
+STORE.init(DATA)
 def _load_auth_secret():
     """签名密钥：环境变量 > state/auth_secret 文件 > 现场生成并 600 落盘。
     绝不回落到那个公开的上传 token（否则谁都能伪造任意楼层令牌）。"""
@@ -59,6 +62,13 @@ AUTH_SECRET = _load_auth_secret()
 
 
 def accounts():
+    """账号以 SQLite 为准；库里没有时回落到老 accounts.json。"""
+    try:
+        rows = STORE.list_accounts()
+        if rows:
+            return rows
+    except Exception:
+        pass
     try:
         return json.load(open(ACCOUNTS_FILE, encoding="utf-8")).get("accounts", [])
     except Exception:
@@ -336,7 +346,7 @@ def roster():
     return _roster_cache
 
 def norm_name(name):
-    """名字归正 + 班级推导：带括号/空格后缀（如「张三 民1」）按别名表补班级。"""
+    """名字归正 + 班级推导：带括号/空格后缀（如「郭煜彬 民1」）按别名表补班级。"""
     alias, amap = _alias_tables()
     parts = str(name).strip().split()
     nm = alias.get(parts[0], parts[0])
@@ -550,6 +560,17 @@ def cfg():
 def save_cfg(c):
     os.makedirs(os.path.join(DATA, "state"), exist_ok=True)
     write_json(os.path.join(DATA, "state", "config.json"), c)
+
+def _boot_migrate():
+    """首次启动把老的文件记录搬进 SQLite（可重复执行）。"""
+    try:
+        if STORE.kv_get("migrated_from_files") != "1":
+            r = STORE.migrate_from_files(DATA, log=logline)
+            STORE.kv_set("migrated_from_files", "1")
+            logline("SQLite 初始化完成：%s" % r)
+    except Exception as e:
+        logline("文件迁移失败：%r" % (e,))
+
 
 def logline(s):
     os.makedirs(os.path.join(DATA, "logs"), exist_ok=True)
@@ -1058,15 +1079,23 @@ class H(BaseHTTPRequestHandler):
             rec = to_stored(payload)
             sc = scope_of(q, self.headers)
             rec["building"], rec["floor"] = sc.get("building", "B"), sc.get("floor", 1)
-            sub = MARKED if rec.get("type") == "marked" else ROLL
-            d = os.path.join(DATA, sub); os.makedirs(d, exist_ok=True)
-            ts = time.strftime("%Y%m%d-%H%M%S"); name = ts + ".json.gz"; path = os.path.join(d, name); i = 0
-            while os.path.exists(path):
-                i += 1; name = f"{ts}-{i}.json.gz"; path = os.path.join(d, name)
-            write_json(path, rec)
-            if rec.get("type") == "marked":
-                purge_same_date(path, mark_date(rec), rec)
-            self._send(200, {"ok": True, "saved": f"{sub}/{name}", "type": rec.get("type")})
+            kind = "marked" if rec.get("type") == "marked" else "roll"
+            ts = time.strftime("%Y%m%d-%H%M%S")
+            try:
+                date = mark_date(rec)
+            except Exception:
+                date = time.strftime("%Y-%m-%d")
+            uid = STORE.add_upload(ts, date, rec["building"], rec["floor"], kind,
+                                   len(rec.get("n") or []) if kind == "marked" else 0,
+                                   rec.get("ref"), rec)
+            if kind == "marked":
+                try:
+                    plan = plan_for(rec)
+                    STORE.upsert_plan(plan["date"], rec["building"], rec["floor"], plan)
+                    logline("计划入库 %s %s（上传 #%d）" % (plan["date"], scope_label(sc), uid))
+                except Exception as e:
+                    logline("计划生成失败（上传 #%d）：%s" % (uid, e))
+            self._send(200, {"ok": True, "saved": "db/%d" % uid, "type": rec.get("type")})
             if rec.get("type") == "marked":
                 threading.Thread(target=_bg_process, args=(path,), daemon=True).start()
             return
@@ -1244,6 +1273,14 @@ class H(BaseHTTPRequestHandler):
             date = str(payload.get("date") or payload.get("file") or q.get("date", [""])[0])
             if not re.fullmatch(r"\d{4}-\d{2}-\d{2}(-[ABab]\d)?", date):   # 计划文件名，防 ../ 穿越
                 return self._send(400, {"ok": False, "error": "bad date"})
+            n = 0
+            try:
+                n = STORE.ack_plan(date)
+            except Exception:
+                n = 0
+            if n:
+                logline(f"销账 {date}（库）")
+                return self._send(200, {"ok": True})
             pp = os.path.join(plan_dir(), date + ".json")
             if os.path.exists(pp):
                 done = os.path.join(DATA, "logs", "done"); os.makedirs(done, exist_ok=True)
@@ -1382,8 +1419,19 @@ class H(BaseHTTPRequestHandler):
             return self._send(404, {"ok": False, "error": "gui missing"})
         if u.path.startswith("/raw/"):
             _h = self.headers.get("Authorization", "").replace("Bearer ", "").strip()
-            if not (bool(ADMIN) and _h == ADMIN) and not self._auth(q):
+            _admin_ok = bool(ADMIN) and (_h == ADMIN or q.get("admin", [""])[0] == ADMIN)
+            if not _admin_ok and not self._auth(q):
                 return self._send(401, {"ok": False, "error": "token"})
+            _name = u.path[5:]
+            if _name.startswith("db/"):
+                try:
+                    uid = int(_name.split("/", 1)[1])
+                except Exception:
+                    return self._send(400, {"ok": False, "error": "bad id"})
+                blob = STORE.export_gz(uid)
+                if blob is None:
+                    return self._send(404, {"ok": False, "error": "missing"})
+                return self._send(200, blob, "application/gzip")
             p = resolve(u.path[5:])
             if not p:
                 return self._send(404, {"ok": False, "error": "missing"})
@@ -1447,7 +1495,33 @@ class H(BaseHTTPRequestHandler):
             if not ADMIN or (q.get("admin", [""])[0] != ADMIN and _h != ADMIN):
                 return self._send(401, {"ok": False, "error": "admin"})
             out = []
-            for rel, ab in iter_records():
+            try:
+                rows = STORE.list_uploads(500)
+            except Exception:
+                rows = []
+            for row in rows:
+                try:
+                    d = STORE.payload_of(row["id"]) or {}
+                    e = {"f": "db/%d" % row["id"], "type": d.get("type"), "d": d.get("d"),
+                         "size": row.get("n") or 0, "sha256": row.get("sha256")}
+                    if d.get("type") == "marked":
+                        e.update({"ref": d.get("ref"), "weekend": d.get("weekend", False),
+                                  "n": len(d.get("n", []))})
+                        plan = None
+                        try:
+                            plan = plan_for(d)
+                        except Exception:
+                            pass
+                        if plan is not None:
+                            e["plan"] = plan
+                    else:
+                        e.update({"t": d.get("t"), "p": d.get("p"), "a": d.get("a")})
+                    out.append(e)
+                except Exception as ex:
+                    out.append({"f": "db/%d" % row.get("id", 0), "error": str(ex)})
+            out = list(reversed(out))
+            _legacy = False
+            for rel, ab in ([] if out else []):
                 try:
                     d = read_json(ab)
                     e = {"f": rel, "type": d.get("type"), "d": d.get("d"), "size": os.path.getsize(ab)}
@@ -1468,15 +1542,11 @@ class H(BaseHTTPRequestHandler):
         if u.path == "/api/pending":   # 待填信箱（兜底任务/管理台读，token 或 admin 均可）
             if not self._auth(q) and (not ADMIN or q.get("admin", [""])[0] != ADMIN):
                 return self._send(401, {"ok": False, "error": "auth"})
-            d = plan_dir()
-            items = []
-            for f in sorted(os.listdir(d)) if os.path.isdir(d) else []:
-                if f.endswith(".json"):
-                    try:
-                        with open(os.path.join(d, f), encoding="utf-8") as fh:
-                            items.append(json.load(fh))
-                    except Exception as e:      # 单份坏计划不该让整个信箱读不出来
-                        logline(f"计划读取失败 {f}: {e}")
+            try:
+                items = STORE.list_plans()
+            except Exception as e:
+                logline(f"计划读取失败: {e}")
+                items = []
             return self._send(200, {"ok": True, "plans": items, "node": cfg().get("node"),
                                     "sheet": cfg().get("sheet", "s1"), "weekend_node": cfg().get("weekend_node"), "temp_node": cfg().get("temp_node"),
                                     "last_done": self._latest_mtime(os.path.join(DATA, "logs", "done"))})
@@ -1485,9 +1555,10 @@ class H(BaseHTTPRequestHandler):
                 return self._send(401, {"ok": False, "error": "auth"})
             # 名册视图（每人的缺勤历史），iPad 点名页可 fetch
             hist = {}
-            for rel, ab in iter_records():
+            for row in (STORE.list_uploads(1000) if True else []):
                 try:
-                    d = read_json(ab)
+                    d = STORE.payload_of(row["id"]) or {}
+                    rel = "db/%d" % row["id"]
                     if d.get("type") != "marked":
                         continue
                     dt = mark_date(d)
@@ -1553,6 +1624,26 @@ class H(BaseHTTPRequestHandler):
             if not ok:
                 return self._send(401, {"ok": False, "error": "auth"})
             name = q.get("name", [""])[0]
+            if name.startswith("db/"):
+                try:
+                    uid = int(name.split("/", 1)[1])
+                except Exception:
+                    return self._send(400, {"ok": False, "error": "bad id"})
+                row = STORE.get_upload(uid)
+                if not row:
+                    return self._send(404, {"ok": False, "error": "missing"})
+                STORE.delete_upload(uid)
+                logline("删除(库) #%d %s %s" % (uid, row.get("date"), row.get("kind")))
+                try:                      # 回退重算：该日该层还有更早的 marked 就重排计划
+                    latest = STORE.latest_upload(row["date"], row["building"], row["floor"], "marked")
+                    if latest:
+                        pl = plan_for(STORE.payload_of(latest["id"]))
+                        STORE.upsert_plan(pl["date"], row["building"], row["floor"], pl)
+                    else:
+                        STORE.drop_plan(row["date"], row["building"], row["floor"])
+                except Exception as e:
+                    logline("删除后重算失败 #%d: %s" % (uid, e))
+                return self._send(200, {"ok": True, "deleted": name})
             p = resolve(name)
             if not p:
                 return self._send(404, {"ok": False, "error": "missing"})
@@ -1614,4 +1705,5 @@ class H(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     for sub in (ROLL, MARKED):
         os.makedirs(os.path.join(DATA, sub), exist_ok=True)
+    _boot_migrate()
     ThreadingHTTPServer(("0.0.0.0", PORT), H).serve_forever()

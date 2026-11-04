@@ -26,11 +26,17 @@ HERE = os.path.dirname(os.path.abspath(__file__))            # /srv/dormroll/ops
 ROOT = os.path.normpath(os.path.join(HERE, ".."))            # /srv/dormroll
 APP = os.path.normpath(os.path.join(HERE, "..", "app"))      # /srv/dormroll/app
 BACKUP = os.path.normpath(os.path.join(HERE, "..", "backup"))
-GROUP_CID = "cidri5LiTJWFqtiR4OmMm/+vw=="
-ZHANG_DAD = "Dbn0DwDPYk4iP9zgtdDKpviPcjsaHyQPSLu"
-# 授权用：张昊天爸爸在该组织的 unionId 与所属 corpId（USER 类型必须带 corpId）
-ZHANG_DAD_UID = "2219856845992"
-ZHANG_DAD_CORP = "CHANGE_ME_DINGTALK_CORP"
+# 钉钉相关标识不写死在代码里：放 data/state/dingtalk.json，或走环境变量
+#   {"group_cid": "...", "app_key": "...", "uid": "...", "corp_id": "..."}
+_dt = {}
+try:
+    _dt = json.load(open(os.path.join(ROOT, "data", "state", "dingtalk.json"), encoding="utf-8"))
+except Exception:
+    _dt = {}
+GROUP_CID = os.environ.get("RC_DINGTALK_GROUP") or _dt.get("group_cid", "")
+ZHANG_DAD = os.environ.get("RC_DINGTALK_APPKEY") or _dt.get("app_key", "")
+ZHANG_DAD_UID = os.environ.get("RC_DINGTALK_UID") or _dt.get("uid", "")
+ZHANG_DAD_CORP = os.environ.get("RC_DINGTALK_CORP") or _dt.get("corp_id", "")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")))
 import table_layout as TL
@@ -102,10 +108,12 @@ def grant_edit(node):
     if not node or str(node).startswith("PLACEHOLDER"):
         return
     ok = 0
-    for members in (
-        '[{"type":"CONVERSATION","id":"%s","roleId":"EDITOR"}]' % GROUP_CID,
-        '[{"type":"USER","id":"%s","corpId":"%s","roleId":"EDITOR"}]' % (ZHANG_DAD_UID, ZHANG_DAD_CORP),
-    ):
+    _m = []
+    if GROUP_CID:
+        _m.append('[{"type":"CONVERSATION","id":"%s","roleId":"EDITOR"}]' % GROUP_CID)
+    if ZHANG_DAD_UID and ZHANG_DAD_CORP:
+        _m.append('[{"type":"USER","id":"%s","corpId":"%s","roleId":"EDITOR"}]' % (ZHANG_DAD_UID, ZHANG_DAD_CORP))
+    for members in _m:
         try:
             dws("drive", "permission", "add", "--node", node, "--members", members)
             ok += 1
@@ -328,6 +336,8 @@ def cmd_fill(sweep=False, dry=False, targets=("main", "weekend", "temp")):
             keep.append(plan)
         else:
             try:
+                # 库里销账（计划表 status=done）；老文件形态一并兼容迁移
+                jpost("%s/api/ack?admin=%s" % (BASE, ADMIN), {"date": plan.get("date")})
                 pd = os.path.join(ROOT, "data", "pending")
                 src = os.path.join(pd, (plan.get("file") or plan.get("date")) + ".json")
                 if os.path.exists(src):
