@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>宿舍点名 · 项目手册</title>
+<style>
+  :root{
+    --bg:#0b0d11; --card:#12151b; --line:#232833; --txt:#dfe5ee; --sub:#8b95a7;
+    --acc:#4fb3a5; --warn:#d0a24c; --bad:#c9584f; --ok:#56a97a;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--txt);
+    font:15px/1.75 -apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif}
+  a{color:var(--acc);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .layout{display:flex;min-height:100vh}
+  nav{width:240px;flex:0 0 240px;border-right:1px solid var(--line);padding:28px 20px;position:sticky;top:0;height:100vh;overflow:auto;background:#0d1015}
+  nav h1{font-size:16px;margin:0 0 4px;letter-spacing:.5px}
+  nav .sub{font-size:12px;color:var(--sub);margin-bottom:22px}
+  nav a{display:block;color:var(--sub);font-size:13px;padding:5px 0;border-left:2px solid transparent;padding-left:10px;margin-left:-12px}
+  nav a:hover{color:var(--txt);text-decoration:none}
+  nav a.on{color:var(--acc);border-left-color:var(--acc)}
+  main{flex:1;min-width:0;padding:44px 48px 80px}
+  .wrap{max-width:880px;margin:0 auto}
+  header.hero{border-bottom:1px solid var(--line);padding-bottom:26px;margin-bottom:34px}
+  header.hero h1{font-size:30px;margin:0 0 10px;letter-spacing:1px}
+  header.hero p{color:var(--sub);margin:0;font-size:14px}
+  .tag{display:inline-block;font-size:12px;color:var(--acc);border:1px solid #1e4a45;background:#0f1d1b;border-radius:999px;padding:2px 10px;margin-right:8px}
+  section{margin:0 0 54px;scroll-margin-top:28px}
+  h2{font-size:20px;margin:0 0 6px;letter-spacing:.5px}
+  h2 small{color:var(--sub);font-size:12px;font-weight:400;margin-left:10px;letter-spacing:0}
+  h3{font-size:15px;margin:24px 0 8px;color:#c7d2e2}
+  p{margin:10px 0}
+  ul,ol{margin:10px 0;padding-left:20px}
+  li{margin:4px 0}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:#0f1218;color:#b9c4d4;font-weight:600;white-space:nowrap}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;background:#0f1218;border:1px solid var(--line);border-radius:4px;padding:1px 5px;color:#cfe6e1}
+  pre{background:#0f1218;border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow:auto;font-size:12.5px;line-height:1.65}
+  pre code{background:none;border:0;padding:0;color:#c9d6e4}
+  .flow{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}
+  .step{flex:1 1 170px;border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--card)}
+  .step b{display:block;font-size:13px;margin-bottom:4px}
+  .step span{font-size:12px;color:var(--sub)}
+  .note{border-left:2px solid var(--acc);background:#0f1614;padding:10px 14px;border-radius:0 8px 8px 0;margin:16px 0;font-size:13.5px;color:#c3d3cf}
+  .warn{border-left-color:var(--warn);background:#161310;color:#e1d3bb}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0}
+  .box{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--card);font-size:13.5px}
+  .box b{color:#cfe0f0}
+  .k{color:var(--acc)}
+  @media (max-width:900px){
+    .layout{display:block}
+    nav{position:static;width:auto;height:auto;border-right:0;border-bottom:1px solid var(--line)}
+    nav a{display:inline-block;padding:4px 10px;margin:2px 4px 0 0;border-left:0;border-radius:6px;background:#12151b}
+    main{padding:28px 20px 60px}
+    .grid{grid-template-columns:1fr}
+  }
+  @media print{
+    nav{display:none} body{background:#fff;color:#111} main{padding:0}
+    :root{--line:#ddd;--card:#fafafa;--sub:#555;--txt:#111}
+    pre,code{background:#f4f4f4;color:#111}
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+<nav>
+  <h1>宿舍点名</h1>
+  <div class="sub">项目手册 · 2026-11-02</div>
+  <a href="#overview" class="on">一、概览</a>
+  <a href="#daily">二、每日流程</a>
+  <a href="#publish">三、周表发布</a>
+  <a href="#fill">四、填表</a>
+  <a href="#tables">五、三张表</a>
+  <a href="#data">六、数据与接口</a>
+  <a href="#ops">七、运维</a>
+  <a href="#pits">八、坑录</a>
+  <a href="#principle">九、工作原理</a>
+  <a href="#archive">十、档案</a>
+  <a href="#expand">十一、全楼扩展</a>
+  <a href="#accounts">十二、账户与点位</a>
+  <a href="#ota">十三、线上更新</a>
+</nav>
+<main><div class="wrap">
+
+<header class="hero">
+  <h1>宿舍点名 · 项目手册</h1>
+  <p>
+    <span class="tag">B 座住宿生</span>
+    <span class="tag">点名 → 三表</span>
+    <span class="tag">应用容器 一体机</span>
+  </p>
+  <p style="margin-top:12px">钱七在 iPad 点完名、上传，系统把请假四维写进三张共享表；周日晚自动发下周新表，周五自动备份。</p>
+</header>
+
+<section id="overview">
+  <h2>一、概览 <small>谁在用、在哪、什么时候跑</small></h2>
+  <div class="grid">
+    <div class="box"><b>宿管老师</b><br>iPad「B座点名」：逐房点缺勤，选 DS/DB/XS/XB，上传。</div>
+    <div class="box"><b>家长</b><br>钉钉共享链接看请假汇总、周末返校、体温三张表。</div>
+    <div class="box"><b>管理者</b><br>网页控制台：发布、查看、试运行、手动填、切表。</div>
+    <div class="box"><b>系统</b><br>应用容器 定时器：发布、填表、补扫、月表、备份。</div>
+  </div>
+
+  <h3>入口</h3>
+  <table>
+    <tr><th>入口</th><th>地址</th></tr>
+    <tr><td>控制台</td><td><code>https://console.example.com/</code>（首次带 <code>?k=口令</code>）</td></tr>
+    <tr><td>一体机 API</td><td><code>https://example.com/dianming/api/</code> → <code>192.168.1.20:8100</code></td></tr>
+    <tr><td>三张表</td><td>钉钉文档（每周/每月新建，家长只看链接）</td></tr>
+  </table>
+
+  <h3>时间线</h3>
+  <table>
+    <tr><th>时间</th><th>任务</th><th>作用</th></tr>
+    <tr><td>周日 07:30</td><td><code>rc-publish</code></td><td>发下周两张表，撤旧表</td></tr>
+    <tr><td>周日至周四 21:40</td><td><code>rc-fill</code></td><td>取计划写三表并销账</td></tr>
+    <tr><td>周日至周四 23:50</td><td><code>rc-sweep</code></td><td>空箱补扫</td></tr>
+    <tr><td>每月 1 日 06:40</td><td><code>rc-tempmonth</code></td><td>发上月体温、生成本月</td></tr>
+    <tr><td>周五 20:00</td><td><code>rc-backup</code></td><td>快照 + 全档打包</td></tr>
+  </table>
+</section>
+
+<section id="daily">
+  <h2>二、每日流程 <small>一晚只需三步</small></h2>
+  <div class="flow">
+    <div class="step"><b>① 点名</b><span>钱七逐房点缺勤，标四维；周日返校记得勾"周末统计"。</span></div>
+    <div class="step"><b>② 上传</b><span>点「上传标记件」。想立刻出表就点「立刻填表」，不点等 21:40。</span></div>
+    <div class="step"><b>③ 看一线</b><span>控制台三格全绿：件到了、计划处理了、三表写了。</span></div>
+  </div>
+
+  <h3>控制台怎么看</h3>
+  <ul>
+    <li><b>今日一线</b>：① 点名件（时间/人数/含不含返校）② 待填计划（几份）③ 写入三表（今日是否已写、最近销账时间）。</li>
+    <li>有计划时，卡片上直接出「试运行」与「写入三表并销账」两颗钮。</li>
+    <li><b>待填计划</b>里写着"将写：主表第 N 行 · 体温 M 月 D 日 X 格"，名单可展开核对。</li>
+    <li>底下「最近记录」是最近几次入箱与销账，肉眼可查今晚是否真写过。</li>
+  </ul>
+
+  <div class="note">三步只需看三处：一线是否绿、最近记录有没有"销账 当日"、任务输出有没有红字。</div>
+</section>
+
+<section id="publish">
+  <h2>三、周表发布 <small>周日自动，也能手动</small></h2>
+  <p>自动：周日 07:30 取下一个周日的日期区间，用标版生成两张 xlsx → 转在线表 → 加群权限 → 发链接 → 旧表撤权改名"已撤-" → 回写配置。</p>
+  <h3>手动发布</h3>
+  <ol>
+    <li>「发布周表」选日期，或点 <b>本周 / 下周 / 上周</b>（自动落周日）。</li>
+    <li>看徽章：<code>11.08~11.12（周日–周四）</code>。</li>
+    <li>看提示：
+      <ul>
+        <li>正常：「将生成 11.08~11.12 两表；将撤下 11.01-11.05…」</li>
+        <li>红字：「⚠️ 该周已在役，再发布将撤权旧表并重建」——多半是误点，停手核对。</li>
+      </ul>
+    </li>
+    <li>点「生成并发布」，按钮变"发布中…"，完成后看任务输出。</li>
+  </ol>
+  <div class="note warn">重复发同一周，等于把自己正在用的表撤掉再建。新表是空表，此前几天填过的数据不会带过去。</div>
+</section>
+
+<section id="fill">
+  <h2>四、填表 <small>从件到三表</small></h2>
+  <p>上传件落 <code>data/marked/</code>，一体机算计划放 <code>data/pending/&lt;date&gt;.json</code>；<code>pipeline_ops fill</code> 取计划写表，成功后 <code>ack</code> 销账。</p>
+  <table>
+    <tr><th>步</th><th>做什么</th><th>失败了会怎样</th></tr>
+    <tr><td>取件</td><td>读当日计划</td><td>空箱且今日无件 → 静默</td></tr>
+    <tr><td>自检</td><td>日期／块号／行位是否自洽</td><td>报错不写，留信箱等处理</td></tr>
+    <tr><td>写主表</td><td>C..L 十格 + 名单</td><td>任一失败整份不销账</td></tr>
+    <tr><td>写周末表</td><td>仅勾了返校的件</td><td>同上</td></tr>
+    <tr><td>写体温</td><td>本地 xlsx 当日列 + 在线同步</td><td>缺人跳过记日志，不阻断</td></tr>
+    <tr><td>销账</td><td>计划移入 <code>logs/done/</code></td><td>未销账 → 23:50 补扫重试</td></tr>
+  </table>
+  <h3>三种触发</h3>
+  <ul>
+    <li><b>定时</b>：21:40 自动；23:50 补扫只处理空箱。</li>
+    <li><b>iPad</b>：「立刻填表」→ 一体机 <code>/write-now</code> → 跑同一套流水线（单飞，连点只跑一次）。</li>
+    <li><b>控制台</b>：「试运行」先空跑看日志；「写入三表并销账」一次落定。</li>
+  </ul>
+  <div class="note">写表前会比对"回读值"，不一致不销账——所以表上数字与点名件必然对得上，对不上就是没写成功。</div>
+</section>
+
+<section id="tables">
+  <h2>五、三张表 <small>结构与写入位</small></h2>
+  <table>
+    <tr><th>表</th><th>结构</th><th>写什么</th></tr>
+    <tr><td>请假汇总</td><td>一周五天，每天一块；每块 8 行学生 + 小计/合计</td><td>当日 C..L：应到/实到/请假（中专、大专）+ 批假名单</td></tr>
+    <tr><td>周末未返校</td><td><code>B1</code> sheet，<code>B2:D51</code></td><td>姓名 / 房号 / 班级</td></tr>
+    <tr><td>体温</td><td>每月一 sheet，按房分块 8 行，日列 C..Y（周日–周四）</td><td>当日列：事 / 病；在校保留 RAND 体温公式</td></tr>
+  </table>
+  <h3>主表行位</h3>
+  <pre><code>块头：1   25   49   73   97     ← 五块（B座二层…）
+日期行：4   28   52   76   100
+数据行：15  39   63   87   111    ← 当日写这两行里的一行（C..L）</code></pre>
+  <h3>四维落位</h3>
+  <table>
+    <tr><th>代号</th><th>含义</th><th>写进</th></tr>
+    <tr><td>DS</td><td>宿管办事假</td><td>宿管办批假 · 事</td></tr>
+    <tr><td>DB</td><td>宿管办病假</td><td>宿管办批假 · 病</td></tr>
+    <tr><td>XS</td><td>部系事假</td><td>部系批假 · 事</td></tr>
+    <tr><td>XB</td><td>部系病假</td><td>部系批假 · 病</td></tr>
+  </table>
+  <h3>名字对齐</h3>
+  <p>名册与表上偶有异体字：杨箫→杨潇、周师涵→周诗涵、邹李沐岐/沭歧→邹李沭岐。先查别名表，再按"去班级后缀、去空白"归一化比。体温表查无此人只跳过并记日志，不炸整条链。</p>
+</section>
+
+<section id="data">
+  <h2>六、数据与接口 <small>东西放哪、怎么调</small></h2>
+  <pre><code>/srv/dormroll/
+├── data/marked/     原始点名件（永久留档）
+├── data/pending/    待填计划（一天一份）
+├── data/logs/       fill.log、done/、superseded-*
+├── data/state/      config.json
+├── data/backup/     周快照 + ct102-data-YYYYMMDD.tgz
+├── app/data/宿舍点体温.xlsx
+└── roster_b1f.json  名册 78 人</code></pre>
+  <h3>点名件</h3>
+  <pre><code>{
+  "v": 4, "type": "marked", "d": "2026/11/2 15:31:01",
+  "weekend": false, "ref": "roll/20261102-153111.json.gz",
+  "n": [["吴一凡 网络", "103", "XS"], ["郭瑞", "105", "DS"]]
+}</code></pre>
+  <h3>常用接口</h3>
+  <table>
+    <tr><th>接口</th><th>作用</th></tr>
+    <tr><td><code>POST /upload</code></td><td>上传点名件（token）</td></tr>
+    <tr><td><code>POST /write-now</code></td><td>立刻填表（admin）</td></tr>
+    <tr><td><code>POST /api/ack</code></td><td>销账（admin，date 必须 YYYY-MM-DD）</td></tr>
+    <tr><td><code>GET /api/pending</code></td><td>待填计划</td></tr>
+    <tr><td><code>GET /api/overview</code></td><td>今日一线（控制台）</td></tr>
+    <tr><td><code>POST /api/publish</code></td><td>发布该周两表</td></tr>
+    <tr><td><code>POST /api/fill</code></td><td>填表（可 dry）</td></tr>
+    <tr><td><code>POST /api/timer</code></td><td>定时任务 on/off/run</td></tr>
+  </table>
+</section>
+
+<section id="ops">
+  <h2>七、运维 <small>机器、命令、备份</small></h2>
+  <table>
+    <tr><th>项</th><th>值</th></tr>
+    <tr><td>机器</td><td>应用容器 <code>pve-rollcall</code>（内部服务器 虚拟化平台 9.2），内网 <code>192.168.1.20</code></td></tr>
+    <tr><td>服务</td><td><code>rollcall</code> :8100 ｜ <code>rc-web</code> :8120</td></tr>
+    <tr><td>进机器</td><td><code>ssh langchao-wg</code> → <code>pct exec 102 -- bash</code></td></tr>
+    <tr><td>日志</td><td><code>journalctl -u rc-fill -n 50</code> ｜ <code>tail -f data/logs/fill.log</code></td></tr>
+    <tr><td>自测</td><td><code>pipeline_ops.py fill --dry</code> ｜ <code>publish 2026-11-08 --dry</code> ｜ <code>tempmonth 2026-12 --dry</code></td></tr>
+    <tr><td>备份还原</td><td><code>tar xzf data/backup/ct102-data-YYYYMMDD.tgz</code></td></tr>
+  </table>
+  <div class="note warn">动代码前先 <code>cp 原名.py 原名.py.bak-日期</code>；改完只重启受影响的服务，<code>rc-web</code> 重启不影响一体机。</div>
+</section>
+
+<section id="pits">
+  <h2>八、坑录 <small>按症状查</small></h2>
+  <table>
+    <tr><th>症状</th><th>根因</th><th>解</th></tr>
+    <tr><td>一片 <code>#VALUE!</code></td><td>加法公式撞文字占位 <code> - </code></td><td>公式一律 <code>SUM(...)</code></td></tr>
+    <tr><td>表里出现文字 <code>None</code></td><td><code>str(None)</code> 落格</td><td>写前转 <code>""</code></td></tr>
+    <tr><td>整晚没写也没销账</td><td>体温查无此人抛错</td><td>已改跳过记日志</td></tr>
+    <tr><td>体温整列空白</td><td>当月 sheet 不存在</td><td>自愈：克隆最近月表</td></tr>
+    <tr><td>表填了两遍</td><td>定时与手动并发</td><td>文件锁 + <code>/write-now</code> 单飞</td></tr>
+    <tr><td>周次差一天</td><td>周一算成周日</td><td><code>off = getDay()</code></td></tr>
+    <tr><td>重复发布撤了在役表</td><td>同周再发</td><td>红色警告拦一句</td></tr>
+    <tr><td>Safari 预览打不开</td><td><code>inset</code> 简写 / 全局 <code>pre</code> 限高</td><td>四边定位；限高只给 <code>#log</code></td></tr>
+    <tr><td>合并格写不进</td><td>整段写撞合并</td><td>拆单格；必要时 unmerge→写→merge</td></tr>
+  </table>
+  <div class="note">详细变更与更多坑：见同目录 <code>06-变更与踩坑.md</code>。</div>
+</section>
+
+<section id="principle">
+  <h2>九、工作原理 <small>件、计划、表；为什么能自己跑对</small></h2>
+  <div class="flow">
+    <div class="step"><b>件（事实）</b><span>iPad 点完的原始记录，只增不改，永久留档。</span></div>
+    <div class="step"><b>计划（意图）</b><span>由件算出"该日该块要写的十格"，一天一份。</span></div>
+    <div class="step"><b>表（结果）</b><span>家长看到的三张表，是计划的投影，可重写。</span></div>
+  </div>
+  <h3>状态机</h3>
+  <pre><code>上传 → 入信箱 → 自检 → 写主表 → 写周末 → 写体温 → 回读校验 → 销账
+                     │                                        │
+                     └─ 不自洽：不写（宁可不动，不乱写）        └─ 失败：留信箱，23:50 重试</code></pre>
+  <p>四条不变量：不销账等于没成；写前自检日期/块号/行号；写后回读逐格比对；只补体温不写主表时不销账。</p>
+
+  <h3>日期与块</h3>
+  <p>周日到周四对应块 0~4，数据行 15/39/63/87/111。调休由 <code>config.blockmap</code> 显式指定块号；跨月按计划日期选 sheet，不看运行时刻。</p>
+
+  <h3>为什么要写成 SUM</h3>
+  <p>原表用加法公式，一碰文字占位 <code> - </code> 就 <code>#VALUE!</code> 并顺着引用传染。全表改 <code>SUM(...)</code>：忽略非数字，正好等于"占位符不算数"。</p>
+
+  <h3>三个入口，一把锁</h3>
+  <p>定时、补扫、手动可能同时触发。文件锁 + 接口单飞 + 原子写三层挡住重复写与半截 JSON。写表幂等，所以失败重跑安全。</p>
+
+  <h3>失败恢复</h3>
+  <table>
+    <tr><th>断在哪</th><th>怎么补</th></tr>
+    <tr><td>上传前断网</td><td>数据在 iPad 本地，联网重传</td></tr>
+    <tr><td>上传后未填</td><td>控制台点「写入三表并销账」</td></tr>
+    <tr><td>写体温失败</td><td>单跑 <code>fill --targets=temp</code>，再销账</td></tr>
+    <tr><td>发布失败</td><td>重跑发布；旧表在成功后才撤权</td></tr>
+  </table>
+  <div class="note">详见 <code>07-工作原理.md</code>：状态机、并发、缓存、鉴权、时序列全在里面。</div>
+</section>
+
+<section id="archive">
+  <h2>十、档案 <small>接手先看这一页</small></h2>
+  <table>
+    <tr><th>字段</th><th>内容</th></tr>
+    <tr><td>编号 / 名称</td><td>SSDM-2026 · 宿舍点名（B 座住宿生点名与三表直填）</td></tr>
+    <tr><td>状态</td><td>在产（客户端 2026-10-07；一体化 2026-11-01）</td></tr>
+    <tr><td>负责人</td><td>林绫婉（决策/运维）· 林望舒（实施）· 钱七（使用）</td></tr>
+    <tr><td>代码 / 线上</td><td><code>宿舍点名App/</code> · 应用容器 <code>/srv/dormroll/</code></td></tr>
+    <tr><td>入口</td><td>控制台 <code>console.example.com</code>；接口 <code>example.com/dianming/api/</code></td></tr>
+    <tr><td>版本</td><td>客户端 1.1（20261102）</td></tr>
+    <tr><td>备份</td><td>每周五 20:00，<code>data/backup/</code></td></tr>
+  </table>
+  <h3>交接五步</h3>
+  <ol>
+    <li>读 README 与项目说明，明白为什么做。</li>
+    <li>读工作流程，知道每天看哪三处。</li>
+    <li>读工作原理，懂"不销账等于没成"。</li>
+    <li>登一次控制台，看「今日一线」三格。</li>
+    <li>跑三条 dry，再照故障表存一份到手机。</li>
+  </ol>
+  <div class="note">完整档案（路径、依赖、验收自检、遗留项）见 <code>项目档案.md</code>。</div>
+</section>
+
+<section id="expand">
+  <h2>十一、全楼扩展 <small>男三层 + 女四层（2–5）</small></h2>
+  <p>一台 应用容器 扛七层。按楼栋拆表、按层分块；名册、件、计划、表全部带 <code>building</code> 维度，同房号跨栋不混。</p>
+  <div class="flow">
+    <div class="step"><b>A1 归一化</b><span>别名 + 同房内模糊匹配，姓同且编辑距离 ≤1 才建议，不越栋认错。</span></div>
+    <div class="step"><b>A4 冲突消解</b><span>操作日志 + 幂等键 + 时间戳后写赢，五点内四维不一致进人工复核。</span></div>
+    <div class="step"><b>A5 离线同步</b><span>本地队列、幂等去重、先传后拉；断网照点，恢复自动补传。</span></div>
+  </div>
+  <table>
+    <tr><th>面</th><th>做法</th></tr>
+    <tr><td>网络</td><td>校内直连 应用容器，跨楼走公网隧道；断网排队，弱网指数退避</td></tr>
+    <tr><td>客户端</td><td>楼栋→楼层→房间→名单；大字号、四维四色、整层套用、语音播报可选</td></tr>
+    <tr><td>权限</td><td>点位 token 按层发；管理员全改、层管本层、家长只看表</td></tr>
+    <tr><td>智能</td><td>规则做异常，模型只写日报与答话，不写表、不碰人脸</td></tr>
+    <tr><td>上线</td><td>B 座三层 → 女生楼 2–5 层 → 全校汇总与告警</td></tr>
+  </table>
+  <div class="note">算法伪代码、容量估算、参考项目与衔接清单见 <code>08-全楼推广设计.md</code>。</div>
+</section>
+
+<section id="accounts">
+  <h2>十二、账户与点位 <small>每层一台 iPad，各登各的账号</small></h2>
+  <p>三个问题分开认：<b>认人</b>（账号）、<b>认层</b>（scope）、<b>认机</b>（点位）。核心一句：<b>楼栋与楼层由服务端按账号决定，客户端说了不算。</b></p>
+  <table>
+    <tr><th>角色</th><th>能做</th><th>不能</th></tr>
+    <tr><td>floor 层管</td><td>点名、标四维、上传、立刻填表、看本层</td><td>别层名册与表</td></tr>
+    <tr><td>admin 管理员</td><td>全部、切层、发周表、建账号、挂失点位</td><td>—</td></tr>
+    <tr><td>viewer 只读</td><td>看本层表与当日件</td><td>上传</td></tr>
+  </table>
+  <h3>登录与令牌</h3>
+  <pre><code>账号+密码 → /auth/login → access_token(2h) + refresh_token(90天，绑设备指纹)
+iPad：access 内存，refresh 进 Keychain；过期自动换</code></pre>
+  <p>断网时凭本地缓存名册与签名短令牌继续点名，操作进队列，恢复按序补传。</p>
+  <h3>上传路由</h3>
+  <pre><code>POST /upload  Bearer &lt;token&gt;
+→ 验签得账号与 scope
+→ building/floor 取账号的，body 里的楼栋字段一律忽略
+→ 不在本层的人记"越层名单"，不进计划</code></pre>
+  <h3>换机与挂失</h3>
+  <p>点位挂失即废 refresh_token，新 iPad 重登生成新点位；名册与历史不受影响。</p>
+  <div class="note">账号模型、接口草案、迁移步骤见 <code>09-账户与点位.md</code>。</div>
+</section>
+
+<section id="ota">
+  <h2>十三、线上更新 <small>打开 App 点一下就更</small></h2>
+  <p>先分清：<b>表格在云端不下载</b>；要更新的只有<b>名册</b>与<b>页面代码</b>。名册按账号 scope 下发本层，代码整包校验后原子切换。</p>
+  <pre><code>启动 → 请求 manifest（app_version / roster_version / 文件哈希）
+有更新 → 点「更新」→ 下载变动文件到暂存区 → sha256 校验
+全部通过 → 原子切换并保留旧版 → WebView 重载
+任一失败 → 删暂存区，继续用旧版</code></pre>
+  <table>
+    <tr><th>规矩</th><th>说明</th></tr>
+    <tr><td>先下后切</td><td>不边下边用，校验不过不切换</td></tr>
+    <tr><td>数据不丢</td><td>未上传的标记与队列独立存放，更新不动</td></tr>
+    <tr><td>可回滚</td><td>保留上一版，起不来一键退回</td></tr>
+    <tr><td>可灰度</td><td>先只给 B 座一层发新版，稳两天再全量</td></tr>
+    <tr><td>断网不扰</td><td>检查失败静默用本地版，点名不依赖更新成功</td></tr>
+  </table>
+  <div class="note">目录结构、接口、发布命令与安全细则见 <code>10-线上更新.md</code>。</div>
+</section>
+
+<p style="color:#5c6678;font-size:12px;margin-top:60px">宿舍点名项目手册 · 2026-11-02 · 同目录另有 README 与五份分册</p>
+
+</div></main>
+</div>
+<script>
+  const links=[...document.querySelectorAll('nav a')];
+  const secs=links.map(a=>document.querySelector(a.getAttribute('href')));
+  const io=new IntersectionObserver(es=>{
+    es.forEach(e=>{
+      if(e.isIntersecting){
+        const i=secs.indexOf(e.target);
+        links.forEach((l,j)=>l.classList.toggle('on',j===i));
+      }
+    });
+  },{rootMargin:'-20% 0px -70% 0px'});
+  secs.forEach(s=>s&&io.observe(s));
+</script>
+</body>
+</html>
