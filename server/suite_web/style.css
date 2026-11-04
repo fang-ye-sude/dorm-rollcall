@@ -1,0 +1,41 @@
+/* B座点名·管理中心 样式 */
+:root {
+  --bg:#f5f6f8; --card:#fff; --ink:#1c2229; --sub:#5b6675; --line:#dfe4ea;
+  --accent:#2f6fed; --ok:#1a9e56; --bad:#cf3f3f; --input:#f0f2f5; --sel:#e8f0fe;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:#14181f; --card:#1d232d; --ink:#e6ebf2; --sub:#9aa7b8; --line:#2c3542;
+    --accent:#4d82f0; --ok:#3fbd7c; --bad:#ef6b6b; --input:#141a22; --sel:#25324a;
+  }
+}
+* { box-sizing:border-box; }
+body { margin:0; padding:24px; background:var(--bg); color:var(--ink);
+       font:15px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
+.wrap { max-width:1100px; margin:0 auto; }
+h1 { font-size:20px; margin:0 0 4px; }
+.sub { color:var(--sub); font-size:13px; margin-bottom:18px; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px 18px; margin-bottom:16px; }
+.card h2 { font-size:15px; margin:0 0 10px; display:flex; align-items:center; gap:8px; }
+.card h2 .num { display:inline-flex; width:20px; height:20px; border-radius:50%; background:var(--accent);
+                color:#fff; font-size:12px; align-items:center; justify-content:center; }
+button { border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:7px;
+         padding:5px 12px; font-size:13px; cursor:pointer; }
+button:hover { border-color:var(--accent); color:var(--accent); }
+button.mini { padding:2px 9px; font-size:12px; }
+input, select { background:var(--input); color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:4px 8px; font-size:13px; }
+table { border-collapse:collapse; width:100%; font-size:13px; }
+th, td { border:1px solid var(--line); padding:5px 8px; text-align:left; }
+th { background:var(--input); color:var(--sub); font-weight:500; }
+.row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.hint { font-size:12px; color:var(--sub); }
+.stat { font-size:13px; color:var(--sub); margin-left:auto; }
+.fixedbox { max-height:460px; overflow:auto; }
+.logbox { font-family:ui-monospace,Menlo,monospace; font-size:12px; line-height:1.7; white-space:pre-wrap; }
+.tag { font-size:11px; padding:1px 8px; border-radius:9px; background:var(--input); color:var(--sub); }
+.tag.mk { background:#e8f0fe; color:#185FA5; }
+.tag.rl { background:#EAF3DE; color:#3B6D11; }
+.plan { color:var(--sub); font-size:12px; }
+.err { color:var(--bad); }
+.hidden { display:none; }
+a { color:var(--accent); text-decoration:none; }

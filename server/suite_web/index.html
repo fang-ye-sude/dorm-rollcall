@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>B座点名 · 管理中心</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<div class="wrap">
+  <h1>B座点名 · 管理中心</h1>
+  <div class="sub">内部服务器 应用容器 一体机：上传件查看/下载/删除 · 立刻填入 · 在线表配置 · 名册缺勤史</div>
+
+  <div class="card">
+    <h2><span class="num">1</span>在线表配置</h2>
+    <div class="row" id="cfgRow">
+      <label>node <input id="cfgNode" size="34"></label>
+      <label>sheet <input id="cfgSheet" size="4"></label>
+      <label>周区间 <input id="cfgWeek" size="14"></label>
+      <button id="cfgSave">保存配置</button>
+      <span id="cfgMsg" class="hint"></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><span class="num">2</span>上传件（回执/标记件）<span class="stat" id="histStat"></span></h2>
+    <div class="row" style="margin-bottom:8px;">
+      <button id="refresh">刷新</button>
+      <input id="adminKey" type="password" placeholder="管理口令" size="16">
+      <button id="btnStudents">名册缺勤史</button>
+    </div>
+    <div id="histBox" class="fixedbox"></div>
+  </div>
+
+  <div class="card">
+    <h2><span class="num">3</span>填报日志</h2>
+    <div id="logBox" class="fixedbox logbox"></div>
+  </div>
+
+  <div class="card hidden" id="stuCard">
+    <h2><span class="num">4</span>名册 · 每人缺勤史 <button class="mini" onclick="document.getElementById('stuCard').classList.add('hidden')">收起</button></h2>
+    <div id="stuBox" class="fixedbox"></div>
+  </div>
+  <div class="card" id="rosterCard">
+    <h2><span class="num">5</span>住宿表 · 自动更新</h2>
+    <div class="row">
+      <label>B座分布图 <input id="rb" type="file" accept=".xlsx"></label>
+      <label>A座分布图 <input id="ra" type="file" accept=".xlsx"></label>
+    </div>
+    <div class="row">
+      <label>男生个人信息 <input id="rm" type="file" accept=".xls,.xlsx"></label>
+      <label>女生个人信息 <input id="rf" type="file" accept=".xls,.xlsx"></label>
+    </div>
+    <div class="row">
+      <button id="rPreview">预演（不写表）</button>
+      <button id="rApply" disabled>确认更新</button>
+      <span id="rMsg" class="hint"></span>
+    </div>
+    <div id="rBox" class="fixedbox" style="max-height:180px;overflow:auto"></div>
+
+    <h2 style="margin-top:18px"><span class="num">6</span>自动源（有链接就能自己拉）</h2>
+    <div class="row"><label>B座 <input id="srcB" size="46" placeholder="https://…/B座.xlsx"></label></div>
+    <div class="row"><label>A座 <input id="srcA" size="46" placeholder="https://…/A座.xlsx"></label></div>
+    <div class="row"><label>男生信息 <input id="srcM" size="42" placeholder="可留空"></label></div>
+    <div class="row"><label>女生信息 <input id="srcF" size="42" placeholder="可留空"></label></div>
+    <div class="row">
+      <label><input id="srcApply" type="checkbox"> 检查到变化就直接写名册（不勾=只预演）</label>
+      <button id="srcSave">保存源</button>
+      <button id="srcCheck">立即检查</button>
+      <span id="srcMsg" class="hint"></span>
+    </div>
+    <div id="srcLog" class="fixedbox logbox" style="max-height:150px"></div>
+  </div>
+</div>
+<script src="./app.js"></script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "building": "B",
+  "floor": 1,
+  "rooms": [
+    {"room": "103", "className": "25示例班", "beds": [
+      {"name": "张三", "class": "25示例班", "mixed": false},
+      {"name": "李四", "class": "25示例班", "mixed": false},
+      {"name": "王五", "class": "25示例二班", "mixed": true},
+      null, null, null, null, null
+    ]},
+    {"room": "105", "className": "25示例二班", "beds": [
+      {"name": "赵六", "class": "25示例二班", "mixed": false},
+      null, null, null, null, null, null, null
+    ]}
+  ]
+}

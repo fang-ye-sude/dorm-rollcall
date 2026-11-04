@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/m_check" android:title="检查更新" />
+    <item android:id="@+id/m_refresh" android:title="刷新名册" />
+    <item android:id="@+id/m_all_present" android:title="全部到齐" />
+    <item android:id="@+id/m_absent_list" android:title="缺勤名单" />
+    <item android:id="@+id/m_reset" android:title="重置本次点名" />
+</menu>

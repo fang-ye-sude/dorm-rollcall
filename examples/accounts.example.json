@@ -1,0 +1,8 @@
+[
+  {"id": "b1", "label": "B座一层", "enabled": true,
+   "salt": "REPLACE_WITH_RANDOM_SALT", "pass": "REPLACE_WITH_PBKDF2_HASH",
+   "scope": {"building": "B", "floor": 1}},
+  {"id": "a2", "label": "A座二层", "enabled": true,
+   "salt": "REPLACE_WITH_RANDOM_SALT", "pass": "REPLACE_WITH_PBKDF2_HASH",
+   "scope": {"building": "A", "floor": 2}}
+]

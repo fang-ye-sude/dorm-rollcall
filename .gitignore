@@ -1,0 +1,21 @@
+# 数据与密钥
+data/
+keystore.properties
+*.keystore
+*.jks
+*.pass
+*.pem
+*.mobileprovision
+*.apk
+*.ipa
+
+# 构建产物
+build/
+.gradle/
+local.properties
+__pycache__/
+*.pyc
+DerivedData/
+*.xcarchive
+*.xcworkspace/xcuserdata/
+.DS_Store

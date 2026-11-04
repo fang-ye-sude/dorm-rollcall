@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand">#1D4E89</color>
+    <color name="brand_dark">#143A67</color>
+    <color name="brand_light">#2F6DB5</color>
+    <color name="gold">#B8894B</color>
+    <color name="teal">#2E7D6B</color>
+    <color name="danger">#C0392B</color>
+    <color name="surface_bg">#F7F9FC</color>
+    <color name="surface_card">#FFFFFF</color>
+    <color name="text_main">#16202B</color>
+    <color name="text_sub">#667085</color>
+    <color name="line">#E4EAF2</color>
+    <color name="primary_pill">#E8F0FB</color>
+</resources>
