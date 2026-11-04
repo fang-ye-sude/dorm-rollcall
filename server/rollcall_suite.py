@@ -1091,14 +1091,15 @@ class H(BaseHTTPRequestHandler):
             if kind == "marked":
                 try:
                     plan = plan_for(rec)
-                    plan["marked_file"] = "db/%d" % uid
-                    STORE.upsert_plan(plan["date"], rec["building"], rec["floor"], plan)
-                    logline("计划入库 %s %s（上传 #%d）" % (plan["date"], scope_label(sc), uid))
+                    if not plan:
+                        logline("非点名日，未生成计划（上传 #%d）" % uid)
+                    else:
+                        plan["marked_file"] = "db/%d" % uid
+                        STORE.upsert_plan(plan["date"], rec["building"], rec["floor"], plan)
+                        logline("计划入库 %s %s（上传 #%d）" % (plan["date"], scope_label(sc), uid))
                 except Exception as e:
                     logline("计划生成失败（上传 #%d）：%s" % (uid, e))
             self._send(200, {"ok": True, "saved": "db/%d" % uid, "type": rec.get("type")})
-            if rec.get("type") == "marked":
-                threading.Thread(target=_bg_process, args=(path,), daemon=True).start()
             return
         if u.path == "/auth/login":
             aid = str(payload.get("id", "")).strip()
@@ -1294,7 +1295,7 @@ class H(BaseHTTPRequestHandler):
                 os.replace(pp, os.path.join(done, os.path.basename(pp)))
                 logline(f"销账 {date}")
                 return self._send(200, {"ok": True})
-            return self._send(404, {"ok": False, "error": "no pending"})
+            return self._send(200, {"ok": True, "skipped": "no pending"})   # 幂等：已销过账也算成功
         if u.path == "/api/config":
             if not (bool(ADMIN) and (q.get("admin", [""])[0] == ADMIN or payload.get("admin") == ADMIN)):
                 return self._send(401, {"ok": False, "error": "admin"})
