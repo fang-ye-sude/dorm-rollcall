@@ -1091,6 +1091,7 @@ class H(BaseHTTPRequestHandler):
             if kind == "marked":
                 try:
                     plan = plan_for(rec)
+                    plan["marked_file"] = "db/%d" % uid
                     STORE.upsert_plan(plan["date"], rec["building"], rec["floor"], plan)
                     logline("计划入库 %s %s（上传 #%d）" % (plan["date"], scope_label(sc), uid))
                 except Exception as e:
@@ -1222,12 +1223,18 @@ class H(BaseHTTPRequestHandler):
         if u.path in ("/write-now", "/api/write-now"):
             # 立刻填表：走统一流水线，主表+周末表+体温表一并落数
             # 先看信箱：空的就直接说清楚，别让前端以为"写好了"
+            today = time.strftime("%Y-%m-%d")
             try:
-                pd = plan_dir()
-                today = time.strftime("%Y-%m-%d")
-                n_today = len([f for f in os.listdir(pd) if f.startswith(today) and f.endswith(".json")])
+                n_today = sum(1 for pl in STORE.list_plans() if str(pl.get("date")) == today)
             except Exception:
                 n_today = 0
+            if n_today == 0:                       # 兼容还没迁移的老文件形态
+                try:
+                    pd = plan_dir()
+                    n_today = len([f for f in os.listdir(pd)
+                                   if f.startswith(today) and f.endswith(".json")])
+                except Exception:
+                    n_today = 0
             if n_today == 0:
                 return self._send(200, {"ok": False, "error": "信箱为空：请先点「上传」，等提示成功后再写表",
                                         "log": ["没有本层今日计划，未执行写入"]})

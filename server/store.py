@@ -191,6 +191,13 @@ def list_plans():
         except Exception:
             continue
         p.setdefault("file", r["date"])
+        if not p.get("marked_file"):
+            row2 = conn().execute(
+                "SELECT id FROM uploads WHERE date=? AND building=? AND floor=? AND kind='marked'"
+                " ORDER BY ts DESC, id DESC LIMIT 1",
+                (r["date"], r["building"], r["floor"])).fetchone()
+            if row2:
+                p["marked_file"] = "db/%d" % row2["id"]
         out.append(p)
     return out
 

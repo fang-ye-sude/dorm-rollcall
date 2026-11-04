@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """应用容器 全自跑：发布白表 / 取件填表 / 深夜补扫 / 周五备份。
 分工不变：rollcall_suite 只算（计划+weekend_rows 入信箱），本脚本只写在线表+发链接。"""
-import datetime, fcntl, json, os, re, shutil, subprocess, sys, time, urllib.request
+import datetime, fcntl, gzip, json, os, re, shutil, subprocess, sys, time, urllib.request
 
 BASE = "http://127.0.0.1:8100"
 
@@ -572,6 +572,15 @@ def _canon(name):
     return _ALIAS.get(name, name)
 
 
+def _db_marked(name):
+    """从库里取上传件（/raw/db/<id> 返回 gzip）。"""
+    uid = str(name).split("/", 1)[1]
+    req = urllib.request.Request("%s/raw/db/%s" % (BASE, uid),
+                                 headers={"Authorization": "Bearer %s" % ADMIN})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        return json.loads(gzip.decompress(r.read()))
+
+
 def fill_temp(plan, dry=False):
     """当月工作表填 病/事：照点名件，已有手填标记不动；在校生的RAND体温公式原样保留"""
     y, m = plan["date"][:7].split("-")
@@ -617,10 +626,13 @@ def fill_temp(plan, dry=False):
     if not mk_name:
         raise RuntimeError("体温填：计划缺 marked_file")
     R = _suite()
-    mk_path = os.path.join(R.DATA, mk_name)
-    if not os.path.exists(mk_path):
-        raise RuntimeError("体温填：找不到 %s" % mk_name)
-    mk = R.read_json(mk_path)
+    if str(mk_name).startswith("db/"):
+        mk = _db_marked(mk_name)
+    else:
+        mk_path = os.path.join(R.DATA, mk_name)
+        if not os.path.exists(mk_path):
+            raise RuntimeError("体温填：找不到 %s" % mk_name)
+        mk = R.read_json(mk_path)
     stus = R.build_students({"students": [{"name": x[0], "room": str(x[1]),
                                            "q": x[2] if len(x) > 2 else "DS"} for x in mk.get("n", [])]})
     day = int(plan["date"][8:10])

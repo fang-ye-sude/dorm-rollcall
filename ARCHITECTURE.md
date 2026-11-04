@@ -25,6 +25,7 @@
 
 - 上传不再「一条一个 json.gz 文件」：原始 JSON 与 gzip 副本都存库，`/raw/db/<id>` 直接下载；
 - 计划不再「一层一个 pending 文件」：`upsert` 到 `plans`，重复上传自动覆盖，`ack` 置 `done`；
+- 计划里的 `marked_file` 记作 `db/<id>`，体温表按它回库取原始件；
 - 删除是一条 `DELETE`，然后按同一天/层最新的一条上传重算计划（或删除计划）；
 - 首次启动会把老的 `data/marked`、`data/roll`、`data/pending`、`accounts.json` 自动迁移进库，迁移标记写 `kv`，可重复执行。
 
