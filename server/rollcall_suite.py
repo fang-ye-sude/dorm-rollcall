@@ -26,7 +26,17 @@ WEB = os.environ.get("RC_WEB", "/srv/dormroll/web")
 TOKEN = os.environ.get("RC_TOKEN", "")
 ADMIN = os.environ.get("RC_ADMIN", "")
 DWS = os.environ.get("RC_DWS", "/srv/dormroll/bin/dws")
-RosterJSON = os.environ.get("RC_ROSTER") or os.path.join(DATA, "roster_b1f.json")
+def _pick_roster_root():
+    """名册可能放 data/（新）或项目根（老部署），两处都认。"""
+    cands = [os.path.join(DATA, "roster_b1f.json"),
+             os.path.join(os.path.dirname(DATA), "roster_b1f.json")]
+    for c in cands:
+        if os.path.exists(c):
+            return c
+    return cands[0]
+
+
+RosterJSON = os.environ.get("RC_ROSTER") or _pick_roster_root()
 CLIENT_WEB = os.environ.get("RC_CLIENT_WEB", "/srv/dormroll/app/web")   # iPad 页面包（OTA 当前版）
 APP_DIR = os.path.dirname(CLIENT_WEB)          # /srv/dormroll/app
 RC_ROOT = os.path.dirname(APP_DIR)             # /srv/dormroll
@@ -160,9 +170,14 @@ def layout_rooms(rooms):
 def pick_roster_file(sc):
     """选定该层唯一名册文件：有 beds 的优先，其次 mtime 新。返回 (path, rooms)。"""
     b, f = sc.get("building", "B"), int(sc.get("floor", 1))
-    base = os.path.dirname(RosterJSON)
-    cands = [os.path.join(base, "roster_%s%df.json" % (b, f)),
-             os.path.join(base, "roster_%s%df.json" % (b.lower(), f))]
+    bases = []
+    for d in (os.path.dirname(RosterJSON), DATA, os.path.dirname(DATA)):
+        if d and d not in bases:
+            bases.append(d)
+    cands = []
+    for base in bases:
+        cands += [os.path.join(base, "roster_%s%df.json" % (b, f)),
+                  os.path.join(base, "roster_%s%df.json" % (b.lower(), f))]
     best_score, best_path, best_rooms = -1.0, None, []
     for p in cands:
         if not os.path.exists(p):
