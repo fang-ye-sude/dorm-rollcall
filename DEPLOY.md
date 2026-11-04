@@ -48,6 +48,8 @@ Description=dormroll server
 After=network.target
 
 [Service]
+Environment=HOME=/root
+Environment=XDG_DATA_HOME=/root/.local/share
 Environment=RC_DATA=/srv/dormroll/data
 Environment=RC_WEB=/srv/dormroll/server/suite_web
 Environment=RC_ADMIN=CHANGE_ME_ADMIN
@@ -123,6 +125,9 @@ curl -X POST https://example.com/rollcall/api/roster/import \
 ```
 
 自动源：编辑 `data/state/roster_sources.json` 填 URL，或走 `POST /api/roster/sources`。
+
+> ⚠️ 所有调用表格 CLI 的 unit 都必须设 `HOME` 与 `XDG_DATA_HOME`。systemd 服务默认没有 `HOME`，
+> CLI 找不到凭证目录就会静默返回空列表（表现：控制台「表格库」一直是空的、填表报 node 未配置）。
 
 ## 3. Android
 

@@ -364,7 +364,7 @@ def cmd_fill(sweep=False, dry=False, targets=("main", "weekend", "temp")):
                 fill_temp(plan, dry)
                 done.append("体温表")
             if not dry and "main" in targets:
-                jpost("%s/api/ack?admin=%s&date=%s" % (BASE, ADMIN, plan.get("file") or plan["date"]))
+                jpost("%s/api/ack?admin=%s&date=%s" % (BASE, ADMIN, plan.get("date") or plan.get("file")))
             LOG("%s %s %s %s妥%s 用时%.1fs" % (plan["date"], plan.get("sheet_title", "?"), plan["range"],
                                           "+".join(done), " [dry]" if dry else "", time.time() - t0))
             return plan.get("report") or "", None

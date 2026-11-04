@@ -1272,8 +1272,12 @@ class H(BaseHTTPRequestHandler):
             if not re.fullmatch(r"\d{4}-\d{2}-\d{2}(-[ABab]\d)?", date):   # 计划文件名，防 ../ 穿越
                 return self._send(400, {"ok": False, "error": "bad date"})
             n = 0
+            m2 = re.fullmatch(r"(\d{4}-\d{2}-\d{2})-([ABab])(\d)", date)
             try:
-                n = STORE.ack_plan(date)
+                if m2:
+                    n = STORE.ack_plan(m2.group(1), m2.group(2).upper(), int(m2.group(3)))
+                else:
+                    n = STORE.ack_plan(date)
             except Exception:
                 n = 0
             if n:
