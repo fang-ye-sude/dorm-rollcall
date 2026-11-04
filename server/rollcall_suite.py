@@ -565,16 +565,41 @@ def iter_records():
 
 # ---------------- 配置/日志 ----------------
 def cfg():
+    """配置以 SQLite(kv.config) 为准；库里没有才回落 config.json（老部署）。"""
+    defaults = {"node": "", "sheet": "s1", "week": "", "daterange": "", "notified": []}
+    raw = None
+    try:
+        raw = STORE.kv_get("config")
+    except Exception:
+        raw = None
+    if raw:
+        try:
+            c = json.loads(raw)
+            for k, v in defaults.items():
+                c.setdefault(k, v)
+            return c
+        except Exception:
+            pass
     p = os.path.join(DATA, "state", "config.json")
     if os.path.exists(p):
         with open(p, encoding="utf-8") as f:
             c = json.load(f)
-        for k, v in {"node": "", "sheet": "s1", "week": "", "daterange": "", "notified": []}.items():
+        for k, v in defaults.items():
             c.setdefault(k, v)
+        try:                       # 顺手迁进库，下次直接读库
+            STORE.kv_set("config", json.dumps(c, ensure_ascii=False))
+        except Exception:
+            pass
         return c
-    return {"node": "", "sheet": "s1", "week": "", "daterange": "", "notified": []}
+    return dict(defaults)
+
 
 def save_cfg(c):
+    """写库为主，同时落一份文件当灾备。"""
+    try:
+        STORE.kv_set("config", json.dumps(c, ensure_ascii=False))
+    except Exception as e:
+        logline("配置写库失败：%r" % (e,))
     os.makedirs(os.path.join(DATA, "state"), exist_ok=True)
     write_json(os.path.join(DATA, "state", "config.json"), c)
 
@@ -593,6 +618,10 @@ def logline(s):
     os.makedirs(os.path.join(DATA, "logs"), exist_ok=True)
     with open(os.path.join(DATA, "logs", "fill.log"), "a", encoding="utf-8") as f:
         f.write(time.strftime("%Y-%m-%d %H:%M:%S ") + s + "\n")
+    try:                                   # 同时进 events 表，便于按时间/关键字查
+        STORE.log_event("info", s[:1000])
+    except Exception:
+        pass
 
 def notify(text):
     c = cfg()

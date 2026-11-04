@@ -308,7 +308,10 @@ def cmd_fill(sweep=False, dry=False, targets=("main", "weekend", "temp")):
         if sweep:
             LOG("空箱·静默")
             return 0
-        idx = jget("%s/index?token=%s" % (BASE, TOKEN))["items"]
+        try:
+            idx = jget("%s/index?token=%s" % (BASE, TOKEN))["items"]
+        except Exception:        # 未配 RC_TOKEN 时 /index 会 401：按“无件”处理
+            idx = []
         if not any(i.get("type") == "marked" and str(i.get("f") or "").startswith(today) for i in idx):
             early = time.localtime().tm_hour * 60 + time.localtime().tm_min < 21 * 60 + 30
             if dry:
