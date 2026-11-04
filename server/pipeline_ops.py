@@ -82,7 +82,7 @@ def dws(*args, check=True, tries=3):
     try:
         return SHEET.sheet(*args, check=check, tries=tries)
     except SHEET.SheetError as e:
-        raise RuntimeError(str(e))
+        raise RuntimeError("%s | %s" % (e, (getattr(e, "out", "") or "")[-300:]))
 
 
 def revoke(node):
@@ -206,11 +206,14 @@ def check_class_order(flat):
 
 # ---------- 填表 ----------
 
-def backup_row(plan, node, rng):
+def backup_row(plan, node, rng, old_values=None):
     """覆盖前先留底：原行有内容就存一份，事后可查可还原。"""
     try:
-        got = read_range(node, "s1", rng)
-        old = [(c or {}).get("value", "") for c in (got[0] if got else [])]
+        if old_values is not None:
+            old = list(old_values)
+        else:
+            got = read_range(node, "s1", rng)
+            old = [(c or {}).get("value", "") for c in (got[0] if got else [])]
         if not any(str(x).strip() for x in old):
             return
         new = [str(x) for x in plan["values"]]
@@ -226,6 +229,103 @@ def backup_row(plan, node, rng):
         LOG("覆盖前留底 %s → %s" % (rng, os.path.basename(fn)))
     except Exception as e:
         LOG("留底失败（不影响写入）：%s" % str(e)[:80])
+
+
+def write_matrix(node, sid, rng, matrix):
+    """直写二维矩阵（batch 用）：{} 表示跳过该格，保留原值。"""
+    dws("sheet", "range", "update", "--node", node, "--sheet-id", sid,
+        "--range", rng, "--values", json.dumps(matrix, ensure_ascii=False))
+
+
+def _row_of(rng):
+    import re as _re
+    m = _re.fullmatch(r"C(\d+):L(\d+)", str(rng or ""))
+    if m and m.group(1) == m.group(2):
+        return int(m.group(1))
+    return None
+
+
+def _batch_groups(rows):
+    """按行距分组：相邻数据行差 2 视为同一块；差更多说明中间夹了小计/合并行，断开。"""
+    order = sorted(rows)
+    groups = []
+    for r in order:
+        if groups and r - groups[-1][-1] <= 2:
+            groups[-1].append(r)
+        else:
+            groups.append([r])
+    return groups
+
+
+def fill_main_batch(plans, node, dry=False):
+    """多层合并写：按行距分组，每组一次读/写/校验。
+
+    小计行是合并单元格，钉钉 API 拒绝写入含合并格的区域，所以按行距断开。
+    返回「已成功写入的行号集合」，调用方据此跳过逐层写。
+    """
+    rows = {}
+    for p in plans:
+        r = _row_of(p.get("range"))
+        if r is None:
+            return set()
+        rows[r] = p
+    if len(rows) < 2:
+        return set()
+
+    done = set()
+    for group in _batch_groups(rows):
+        if len(group) < 2:                 # 单层不值得批量，交给逐层写
+            continue
+        lo, hi = group[0], group[-1]
+        rng = "C%d:L%d" % (lo, hi)
+        if dry:
+            LOG("[dry] 批量主表 %s %s（%d 层，一次写）" % (node[:8], rng, len(group)))
+            done.update(group)
+            continue
+        try:
+            cells = read_range(node, "s1", rng)
+            old = {lo + i: [(c or {}).get("value", "") for c in (row or [])] for i, row in enumerate(cells)}
+            for r in group:
+                try:
+                    backup_row(rows[r], node, rows[r]["range"], old.get(r) or [])
+                except Exception as e:
+                    LOG("留底失败 %s: %s" % (rows[r].get("range"), e))
+
+            def _matrix():
+                mat = []
+                for r in range(lo, hi + 1):
+                    if r in rows:
+                        mat.append([{"type": "text", "text": ("" if v is None else str(v))}
+                                    for v in rows[r]["values"]])
+                    else:
+                        mat.append([{}] * 10)
+                return mat
+
+            write_matrix(node, "s1", rng, _matrix())
+            ok = False
+            for attempt in (1, 2):
+                got = read_range(node, "s1", rng)
+                bad = []
+                for i, row in enumerate(got):
+                    r = lo + i
+                    if r not in rows:
+                        continue
+                    vals = [norm((c or {}).get("value") or "") for c in (row or [])]
+                    if vals != [norm(x) for x in rows[r]["values"]]:
+                        bad.append(r)
+                if not bad:
+                    ok = True
+                    break
+                LOG("批量回读不符 %s，重写（%d 行）" % (rng, len(bad)))
+                write_matrix(node, "s1", rng, _matrix())
+            if ok:
+                LOG("批量主表 %s %s → %d 层（1 读 1 写 1 校验）" % (node[:8], rng, len(group)))
+                done.update(group)
+            else:
+                LOG("批量回读仍不符 %s，交回逐层" % rng)
+        except Exception as e:
+            LOG("批量写失败 %s：%s（交回逐层）" % (rng, str(e)[:120]))
+    return done
 
 
 def fill_main(plan, node, dry):
@@ -346,11 +446,11 @@ def cmd_fill(sweep=False, dry=False, targets=("main", "weekend", "temp")):
     if not plans:
         LOG("今日无待填计划·静默")
         return 0
-    def run_one(plan):
+    def run_one(plan, skip_main=False):
         t0 = time.time()
         done = []
         try:
-            if "main" in targets:
+            if "main" in targets and not skip_main:
                 if not node or str(node).startswith("PLACEHOLDER"):
                     raise RuntimeError("在线表 node 未配置")
                 if not (SHEET is not None and getattr(SHEET, "MOCK", False)) \
@@ -375,11 +475,26 @@ def cmd_fill(sweep=False, dry=False, targets=("main", "weekend", "temp")):
             notify_fail("[点名填表] %s 停" % plan["date"], str(e))
             return "", e
 
-    # 各层互不相干 → 并行写；默认 3 路（避免限流），可用 RC_FILL_WORKERS 调到 7
+    # 主表：多层合并成一次读/写/校验（小计行是合并格，按行距分组绕开）
+    done_rows = set()
+    if "main" in targets and len(plans) > 1 and os.environ.get("RC_NO_BATCH") != "1":
+        if not node or str(node).startswith("PLACEHOLDER"):
+            pass
+        else:
+            try:
+                if not (SHEET is not None and getattr(SHEET, "MOCK", False)) \
+                        and os.environ.get("RC_SKIP_SELFCHECK") != "1" and not dry:
+                    selfcheck(plans[0], node)
+                done_rows = fill_main_batch(plans, node, dry) or set()
+            except Exception as e:
+                LOG("批量主表失败，回退逐层：%s" % e)
+                done_rows = set()
+
+    # 其余（周末表/体温表/销账）仍按层并行；默认 3 路
     from concurrent.futures import ThreadPoolExecutor
     _w = int(os.environ.get("RC_FILL_WORKERS", "3") or 3)
     with ThreadPoolExecutor(max_workers=min(_w, max(1, len(plans)))) as ex:
-        outs = list(ex.map(run_one, plans))
+        outs = list(ex.map(lambda p: run_one(p, skip_main=(_row_of(p.get("range")) in done_rows)), plans))
     for rep, err in outs:
         if err is not None:
             fails += 1
