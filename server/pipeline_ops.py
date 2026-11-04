@@ -375,9 +375,10 @@ def cmd_fill(sweep=False, dry=False, targets=("main", "weekend", "temp")):
             notify_fail("[点名填表] %s 停" % plan["date"], str(e))
             return "", e
 
-    # 各层互不相干 → 并行写；限 3 路，避免把接口打出限流
+    # 各层互不相干 → 并行写；默认 3 路（避免限流），可用 RC_FILL_WORKERS 调到 7
     from concurrent.futures import ThreadPoolExecutor
-    with ThreadPoolExecutor(max_workers=min(3, max(1, len(plans)))) as ex:
+    _w = int(os.environ.get("RC_FILL_WORKERS", "3") or 3)
+    with ThreadPoolExecutor(max_workers=min(_w, max(1, len(plans)))) as ex:
         outs = list(ex.map(run_one, plans))
     for rep, err in outs:
         if err is not None:
