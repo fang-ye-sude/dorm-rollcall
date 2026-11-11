@@ -1327,6 +1327,17 @@ class H(BaseHTTPRequestHandler):
                 logline(f"fill-now 失败 {p}: {e}")
                 return self._send(500, {"ok": False, "error": "process failed"})
             return self._send(200, {"ok": True})
+        if u.path in ("/auth/refresh", "/api/auth/refresh"):   # 滑动续期：旧令牌（含宽限期）换新令牌
+            tok = (self.headers.get("Authorization", "").replace("Bearer ", "").strip()
+                   or str(payload.get("token") or ""))
+            pl = verify_token(tok) if tok else None
+            if not pl:
+                return self._send(401, {"ok": False, "error": "token"})
+            newtok = sign_token(pl.get("aid"), pl.get("scope") or {})
+            logline("令牌续期 %s" % pl.get("aid"))
+            return self._send(200, {"ok": True, "access_token": newtok,
+                                    "expires_in": 720 * 3600,
+                                    "aid": pl.get("aid"), "scope": pl.get("scope") or {}})
         if u.path in ("/api/log", "/api/logs"):        # 设备日志上报
             tok_ok = self._token_ok(q, payload) or (bool(ADMIN) and q.get("admin", [""])[0] == ADMIN)
             if not tok_ok:
