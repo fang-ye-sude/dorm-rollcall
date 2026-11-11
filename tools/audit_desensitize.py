@@ -17,7 +17,8 @@ WHITE_SUFFIX = ("example.com", "github.com", "githubusercontent.com", "gradle.or
                 "maven.org", "apple.com", "apache.org", "w3.org", "android.com",
                 "java.io", "java.net", "javax.net", "android.net", "json.org",
                 "kotlinlang.org", "jetbrains.com", "dingtalk.com", "bars.top",
-                "gitee.com", "gitcode.com", "atomgit.com", "coding.net", "github.io")
+                "gitee.com", "gitcode.com", "atomgit.com", "coding.net", "github.io",
+                "socket.io", "example.org", "example.net")
 SELF = "tools/audit_desensitize.py"
 RULES = {
     "公网IP": r"\b(?!10\.|127\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|203\.0\.113\.)"
@@ -31,6 +32,9 @@ RULES = {
     "生产路径": r"/opt/rollcall",
 }
 SKIP = {".git", "build", ".gradle", "__pycache__", "node_modules"}
+
+
+SKIP_SELF = True   # 审计脚本自身含规则字面量，跳过不报
 
 
 def scan(text):
@@ -54,7 +58,7 @@ def main():
         dirs[:] = [d for d in dirs if d not in SKIP]
         for f in files:
             p = pathlib.Path(root) / f
-            if str(p.relative_to(ROOT)) == SELF:      # 脚本自身含规则字面量，跳过
+            if str(p.relative_to(ROOT)).replace("\\", "/") == SELF:   # 脚本自身含规则字面量，跳过
                 continue
             try:
                 txt = p.read_text(encoding="utf-8")
