@@ -94,11 +94,14 @@ def hash_pw(pw, salt):
     return hashlib.pbkdf2_hmac("sha256", pw.encode(), salt.encode(), 200000).hex()
 
 
-def sign_token(aid, scope, hours=12):
+def sign_token(aid, scope, hours=720):
     payload = {"aid": aid, "scope": scope, "exp": int(time.time()) + hours * 3600}
     raw = base64.urlsafe_b64encode(json.dumps(payload, separators=(",", ":")).encode()).decode().rstrip("=")
     sig = hmac.new(AUTH_SECRET.encode(), raw.encode(), hashlib.sha256).hexdigest()[:32]
     return raw + "." + sig
+
+
+GRACE_HOURS = 720         # 过期宽限：旧令牌过期 30 天内仍可用（老师端不常重新登录，宁可放宽）
 
 
 def verify_token(tok):
@@ -107,7 +110,7 @@ def verify_token(tok):
         if not hmac.compare_digest(sig, hmac.new(AUTH_SECRET.encode(), raw.encode(), hashlib.sha256).hexdigest()[:32]):
             return None
         payload = json.loads(base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4)))
-        if payload.get("exp", 0) < time.time():
+        if payload.get("exp", 0) < time.time() - GRACE_HOURS * 3600:
             return None
         return payload
     except Exception:
@@ -1106,6 +1109,32 @@ class H(BaseHTTPRequestHandler):
                 date = mark_date(rec)
             except Exception:
                 date = time.strftime("%Y-%m-%d")
+            # 客户端日期可能是缓存值（曾整晚都发昨天的 d）。晚间上传一律以服务器当天为准：
+            # 18:00 之后、且客户端日期比今天早 1~2 天 → 纠正为今天，并记一行。
+            # 日期护栏：只接受前 30 天 ~ 后 7 天，挡住测试用的假日期（曾混入 2026/12/15）
+            try:
+                _d = time.mktime(time.strptime(date, "%Y-%m-%d"))
+                _t = time.mktime(time.strptime(time.strftime("%Y-%m-%d"), "%Y-%m-%d"))
+                _delta = round((_d - _t) / 86400)
+                if _delta > 7 or _delta < -30:
+                    logline("拒绝上传：日期 %s 超出允许范围（%+d 天）" % (date, _delta))
+                    return self._send(400, {"ok": False, "error": "日期异常：%s" % date})
+            except Exception:
+                pass
+            try:
+                _today = time.strftime("%Y-%m-%d")
+                _late = time.localtime().tm_hour >= 18
+                if _late and date and date != _today:
+                    _d0 = time.mktime(time.strptime(date, "%Y-%m-%d"))
+                    _d1 = time.mktime(time.strptime(_today, "%Y-%m-%d"))
+                    _diff = round((_d1 - _d0) / 86400)
+                    if 1 <= _diff <= 2:
+                        logline("客户端日期滞后：%s → 按今天 %s 入库（上传 #见下）" % (date, _today))
+                        rec["d_client"] = rec.get("d")
+                        rec["d"] = time.strftime("%Y/%m/%d 21:00:00")
+                        date = _today
+            except Exception:
+                pass
             uid = STORE.add_upload(ts, date, rec["building"], rec["floor"], kind,
                                    len(rec.get("n") or []) if kind == "marked" else 0,
                                    rec.get("ref"), rec)

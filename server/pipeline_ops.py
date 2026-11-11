@@ -495,11 +495,21 @@ def cmd_fill(sweep=False, dry=False, targets=("main", "weekend", "temp")):
     _w = int(os.environ.get("RC_FILL_WORKERS", "3") or 3)
     with ThreadPoolExecutor(max_workers=min(_w, max(1, len(plans)))) as ex:
         outs = list(ex.map(lambda p: run_one(p, skip_main=(_row_of(p.get("range")) in done_rows)), plans))
-    for rep, err in outs:
+    for _plan, (rep, err) in zip(plans, outs):
         if err is not None:
             fails += 1
-        elif rep:
+            continue
+        if rep:
             reports.append(rep)
+        if not dry:
+            try:
+                import rollcall_suite as _R
+                v = verify_plan(_plan, node, wnode, _R.cfg().get("temp_node"), targets)
+                LOG("对账 " + fmt_verify(v))
+                if not v["ok"]:
+                    send_group("⚠️ 三表不一致 " + fmt_verify(v))
+            except Exception as e:
+                LOG("对账失败：%s" % str(e)[:80])
     if reports and not dry and "main" in targets:
         send_group("[点名日报]\n" + "\n".join(r for r in reports if r))
     return 1 if fails else 0
@@ -696,6 +706,89 @@ def _db_marked(name):
         return json.loads(gzip.decompress(r.read()))
 
 
+
+def _count_marks_in_temp(tnode, date):
+    """共享体温表：当月 sheet 里该日的列，数「病/事」格。"""
+    if not tnode:
+        return None
+    y, m, d = date.split("-")
+    title1, title2 = "%s.%s" % (y, m), "%s年%d月" % (y, int(m))
+    sid = next((x.get("sheetId") for x in list_sheets(tnode)
+                if x.get("title") in (title1, title2)), None)
+    if not sid:
+        return None
+    head = read_range(tnode, sid, "A2:AZ2")
+    row = head[0] if head else []
+    col = None
+    for i, cell in enumerate(row):
+        if str((cell or {}).get("value") or "").strip() == str(int(d)):
+            col = i + 1                      # A=1
+    if not col:
+        return None
+    from openpyxl.utils import get_column_letter as _gl
+    L = _gl(col)
+    cells = read_range(tnode, sid, "%s3:%s260" % (L, L))
+    n = 0
+    for r in (cells or []):
+        v = str(((r[0] if r else None) or {}).get("value") or "").strip()
+        if v in ("病", "事", "病假", "事假"):
+            n += 1
+    return n
+
+
+def _count_weekend(wnode, plan):
+    rows = plan.get("weekend_rows")
+    if not wnode or rows is None:
+        return None
+    title = plan.get("sheet_title") or "B1"
+    sid = next((x.get("sheetId") for x in list_sheets(wnode) if x.get("title") == title), None)
+    if not sid:
+        return None
+    n = len(rows)
+    if n == 0:
+        return 0
+    got = read_range(wnode, sid, "B2:D%d" % (n + 1))
+    return sum(1 for r in (got or []) if str(((r[1] if len(r) > 1 else None) or {}).get("value") or "").strip())
+
+
+def verify_plan(plan, node, wnode=None, tnode=None, targets=("main", "weekend", "temp")):
+    """写后对账：本次写过的表，数量都要等于件里人数（没写的表不参与）。"""
+    try:
+        exp = int(plan.get("leaveN") or 0)
+    except Exception:
+        exp = 0
+    out = {"date": plan.get("date"), "floor": plan.get("sheet_title"), "expect": exp}
+    # 主表：重读缺勤列（values[4]）
+    try:
+        main_row = read_range(node, "s1", plan["range"])[0]
+        raw = str((main_row[4] or {}).get("value") or "").strip()
+        out["main"] = int(float(raw)) if raw else 0
+    except Exception as e:
+        out["main"] = None
+        out["main_err"] = str(e)[:80]
+    if "weekend" in targets and plan.get("weekend_rows") is not None:
+        out["weekend"] = _count_weekend(wnode, plan)
+    if "temp" in targets:
+        try:
+            out["temp"] = _count_marks_in_temp(tnode, plan["date"])
+        except Exception as e:
+            out["temp"] = None
+            out["temp_err"] = str(e)[:80]
+
+    checks = [v for k, v in (("main", out.get("main")), ("weekend", out.get("weekend")),
+                             ("temp", out.get("temp"))) if v is not None]
+    out["ok"] = bool(checks) and all(v == exp for v in checks)
+    return out
+
+
+def fmt_verify(v):
+    def s(x):
+        return "—" if x is None else str(x)
+    return "%s %s：主表 %s / 周末 %s / 体温 %s（应 %d）%s" % (
+        v.get("date"), v.get("floor"), s(v.get("main")), s(v.get("weekend")),
+        s(v.get("temp")), v.get("expect", 0), "" if v.get("ok") else " ⚠️不一致")
+
+
 def fill_temp(plan, dry=False):
     """当月工作表填 病/事：照点名件，已有手填标记不动；在校生的RAND体温公式原样保留"""
     y, m = plan["date"][:7].split("-")
@@ -801,7 +894,7 @@ def fill_temp(plan, dry=False):
         p2 = jget("%s/api/pending?token=%s" % (BASE, TOKEN))
         tn = p2.get("temp_node")
         if tn and want:
-            sheets = dws("sheet", "+list-sheets", "--node", tn).get("data", {}).get("sheets", [])
+            sheets = list_sheets(tn)      # 统一解析（CLI 有时返回 data 为数组，直接 .get 会炸）
             y_, m_ = key.split(".")
             want_title = "%s年%d月" % (y_, int(m_))
             sid = next((x["sheetId"] for x in sheets if x.get("title") in (key, want_title)), None)
@@ -818,12 +911,24 @@ def fill_temp(plan, dry=False):
                     lo, hi = rows_c[0], rows_c[-1]
                     L = get_column_letter(c_)
                     cur = read_range(tn, sid, "%s%d:%s%d" % (L, lo, L, hi))
-                    vals = [[(x or {}).get("value", "")] for x in (cur or [])]
+                    vals = []                      # read_range 是「行→单元格」，取每行首格
+                    for _row in (cur or []):
+                        _cell = (_row[0] if _row else None) or {}
+                        vals.append([_cell.get("value", "")])
                     while len(vals) < hi - lo + 1:
                         vals.append([""])
                     for r_ in rows_c:
                         vals[r_ - lo] = [cells[(r_, c_)]]
-                    write_range(tn, sid, "%s%d:%s%d" % (L, lo, L, hi), vals)
+                    try:
+                        write_range(tn, sid, "%s%d:%s%d" % (L, lo, L, hi), vals)
+                    except Exception as e:
+                        if "merged" not in str(e).lower():
+                            raise
+                        # 共享体温表里有合并格，整列写会被拒 → 退化为逐格写（只写有内容的行）
+                        LOG("共享表合并格，改逐格写 %s 列（%d 格）" % (L, len(rows_c)))
+                        for r_ in rows_c:
+                            write_range(tn, sid, "%s%d:%s%d" % (L, r_, L, r_),
+                                        [[cells[(r_, c_)]]])
                 LOG("体温共享表 %s 同步 %d 格（清 %d，按列 %d 次写）" % (key, len(want), len(cleared), len(cols)))
     except Exception as e:
         LOG("体温共享表同步失败（不影响本地）：%s" % str(e)[:80])
@@ -985,6 +1090,34 @@ if __name__ == "__main__":
     elif cmd == "fill":
         tg = next((a.split("=", 1)[1] for a in sys.argv[2:] if a.startswith("--targets=")), "main,weekend,temp")
         sys.exit(cmd_fill(sweep=False, dry=dry, targets=tuple(x.strip() for x in tg.split(",") if x.strip())))
+    elif cmd == "verify":
+        import sqlite3 as _sq
+        import rollcall_suite as R
+        con = _sq.connect(os.path.join(ROOT, "data", "rollcall.db"))
+        today = time.strftime("%Y-%m-%d")
+        rows = con.execute("select id,payload from uploads where date=? order by id desc", (today,)).fetchall()
+        seen, plans2 = set(), []
+        for uid, pay in rows:
+            rec = json.loads(pay or "{}")
+            key = (rec.get("building"), rec.get("floor"))
+            if key in seen:
+                continue
+            seen.add(key)
+            pl = R.plan_for(rec)
+            if pl.get("weekend"):
+                try: pl["weekend_rows"] = R.weekend_rows(rec)
+                except Exception: pass
+            plans2.append(pl)
+        if not plans2:
+            print("今日无件可对账"); sys.exit(0)
+        bad = 0
+        for pl in plans2:
+            v = verify_plan(pl, R.cfg().get("node"), R.cfg().get("weekend_node"),
+                            R.cfg().get("temp_node"))
+            print(fmt_verify(v))
+            bad += 0 if v["ok"] else 1
+        print("对账 %d 层，异常 %d 层" % (len(plans2), bad))
+        sys.exit(0 if bad == 0 else 3)
     elif cmd == "sweep":
         tg = next((a.split("=", 1)[1] for a in sys.argv[2:] if a.startswith("--targets=")), "main,weekend,temp")
         sys.exit(cmd_fill(sweep=True, dry=dry, targets=tuple(x.strip() for x in tg.split(",") if x.strip())))
